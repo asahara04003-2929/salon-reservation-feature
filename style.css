@@ -290,3 +290,79 @@ a{ color:inherit; }
   margin: 0 auto;
   padding: 0 16px 24px;
 }
+
+.timeTableWrap{
+  margin-top: 12px;
+  overflow: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(2,6,23,.25);
+}
+
+.timeTable{
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 760px; /* PCで見やすく */
+}
+
+.timeTable th, .timeTable td{
+  border-right: 1px solid rgba(148,163,184,.12);
+  border-bottom: 1px solid rgba(148,163,184,.12);
+  padding: 8px 10px;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.timeTable thead th{
+  position: sticky;
+  top: 0;
+  background: rgba(11,18,32,.92);
+  z-index: 2;
+  font-weight: 700;
+}
+
+.timeTable th:first-child, .timeTable td:first-child{
+  position: sticky;
+  left: 0;
+  background: rgba(11,18,32,.92);
+  z-index: 1;
+  font-weight: 700;
+}
+
+.timeCell{
+  cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(255,255,255,.02);
+}
+
+.timeCell--ok{
+  border-color: rgba(34,197,94,.45);
+  background: rgba(34,197,94,.10);
+}
+
+.timeCell--ng{
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.timeCell--selected{
+  outline: 2px solid rgba(34,197,94,.8);
+  outline-offset: -2px;
+}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid rgba(148,163,184,.18);
+  font-weight: 800;
+}
+
+.badge--ok{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.45); }
+.badge--ng{ color: rgba(148,163,184,.85); }

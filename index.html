@@ -107,29 +107,40 @@
         <div class="list" id="planList"></div>
       </section>
 
-      <!-- Step 2 -->
-      <section class="panel hidden" id="panelDateTime">
-        <div class="panel__head row row--space">
-          <h3>日時を選択</h3>
-          <button class="btn btn--ghost" id="btnBackToPlan" type="button">← プランに戻る</button>
-        </div>
+			<!-- Step 2 -->
+			<section class="panel hidden" id="panelDateTime">
+			<div class="panel__head row row--space">
+					<h3>日時を選択</h3>
+					<button class="btn btn--ghost" id="btnBackToPlan" type="button">← プランに戻る</button>
+			</div>
 
-        <div class="grid grid--2">
-          <label class="field">
-            <span class="field__label">日付</span>
-            <input class="input" type="date" id="dateInput" />
-          </label>
+			<div class="grid grid--2">
+					<div class="field">
+					<span class="field__label">週の表示</span>
+					<div class="row">
+							<button class="btn btn--ghost" id="btnPrevWeek" type="button">← 前の週</button>
+							<button class="btn btn--ghost" id="btnToday" type="button">今日</button>
+							<button class="btn btn--ghost" id="btnNextWeek" type="button">次の週 →</button>
+					</div>
+					<div class="muted small" id="weekLabel"></div>
+					</div>
 
-          <div class="field">
-            <span class="field__label">選択中のプラン</span>
-            <div class="summary" id="selectedPlanBox">—</div>
-          </div>
-        </div>
+					<div class="field">
+					<span class="field__label">選択中のプラン</span>
+					<div class="summary" id="selectedPlanBox">—</div>
+					</div>
+			</div>
 
-        <div class="muted small" id="slotHint"></div>
+			<div class="muted small" id="slotHint"></div>
 
-        <div class="slotGrid" id="slotGrid"></div>
-      </section>
+			<!-- 週×時間の表 -->
+			<div class="timeTableWrap">
+					<table class="timeTable" id="timeTable">
+					<thead id="timeTableHead"></thead>
+					<tbody id="timeTableBody"></tbody>
+					</table>
+			</div>
+			</section>
 
       <!-- Step 3 -->
       <section class="panel hidden" id="panelConfirm">

@@ -224,12 +224,6 @@ function wireEvents() {
   $("btnBackToPlan")?.addEventListener("click", () => gotoStep(1));
   $("btnBackToDateTime")?.addEventListener("click", () => gotoStep(2));
 
-  $("dateInput")?.addEventListener("change", async (ev) => {
-    state.selectedDate = ev.target.value;
-    state.selectedStartAt = null;
-    await loadAvailability();
-  });
-
   $("btnConfirmReserve")?.addEventListener("click", async () => {
     await reserve();
   });
@@ -243,6 +237,19 @@ function wireEvents() {
     $("slotGrid").innerHTML = "";
     $("selectedPlanBox").textContent = "—";
     gotoStep(1);
+  });
+
+  $("btnPrevWeek")?.addEventListener("click", async () => {
+    shiftWeek(-7);
+    await loadAvailabilityWeek();
+  });
+  $("btnNextWeek")?.addEventListener("click", async () => {
+    shiftWeek(7);
+    await loadAvailabilityWeek();
+  });
+  $("btnToday")?.addEventListener("click", async () => {
+    state.weekStart = startOfWeek(new Date());
+    await loadAvailabilityWeek();
   });
 }
 
@@ -296,10 +303,12 @@ async function checkUser() {
 }
 
 function setDefaultDate() {
-  const today = new Date();
-  const ymd = fmtYmd(today);
-  $("dateInput").value = ymd;
-  state.selectedDate = ymd;
+  // 週表示の起点を今日の週にする
+  state.weekStart = startOfWeek(new Date());
+  const from = ymd(state.weekStart);
+  const to = ymd(addDays(state.weekStart, 6));
+  const label = $("weekLabel");
+  if (label) label.textContent = `${from} 〜 ${to}`;
 }
 
 /**
@@ -347,28 +356,86 @@ function renderPlans() {
   const list = $("planList");
   list.innerHTML = "";
 
+  state.selectedPlans = [];
+  state.totalDurationMin = 0;
+  state.totalPrice = 0;
+
+  const summaryId = "planSummaryBox";
+  if (!$(summaryId)) {
+    const box = document.createElement("div");
+    box.className = "alert";
+    box.id = summaryId;
+    box.textContent = "プランを選択してください（複数選択可）";
+    list.parentElement.insertBefore(box, list);
+  } else {
+    $(summaryId).textContent = "プランを選択してください（複数選択可）";
+  }
+
   if (!state.plans.length) {
     list.innerHTML = `<div class="alert">利用可能なプランがありません。</div>`;
     return;
   }
 
+  // 決定ボタン（下部）
+  const footer = document.createElement("div");
+  footer.className = "row row--end";
+  footer.innerHTML = `<button class="btn btn--primary" type="button" id="btnPlanDecide" disabled>日時を選ぶ</button>`;
+
   state.plans.forEach(plan => {
     const el = document.createElement("div");
     el.className = "item";
+
+    const id = `plan_${plan.plan_id}`;
     el.innerHTML = `
-      <div class="item__title">${escapeHtml(plan.plan_name)}</div>
-      <div class="item__meta">所要時間: ${Number(plan.duration_min)}分 / 料金: ¥${Number(plan.price).toLocaleString()}</div>
-      <div class="item__actions">
-        <button class="btn btn--primary" type="button">このプランで日時を選ぶ</button>
+      <div class="row row--space">
+        <div>
+          <div class="item__title">${escapeHtml(plan.plan_name)}</div>
+          <div class="item__meta">所要時間: ${Number(plan.duration_min)}分 / 料金: ¥${Number(plan.price).toLocaleString()}</div>
+        </div>
+        <label class="row" style="gap:8px;">
+          <input type="checkbox" id="${id}" data-plan-id="${escapeHtml(plan.plan_id)}" />
+          <span class="muted">選択</span>
+        </label>
       </div>
     `;
-    el.querySelector("button").addEventListener("click", async () => {
-      state.selectedPlan = plan;
-      $("selectedPlanBox").textContent = `${plan.plan_name}（${plan.duration_min}分 / ¥${Number(plan.price).toLocaleString()}）`;
-      gotoStep(2);
-      await loadAvailability();
+
+    el.querySelector("input").addEventListener("change", (ev) => {
+      const checked = ev.target.checked;
+
+      if (checked) {
+        state.selectedPlans.push(plan);
+      } else {
+        state.selectedPlans = state.selectedPlans.filter(p => p.plan_id !== plan.plan_id);
+      }
+
+      // 合計更新
+      state.totalDurationMin = state.selectedPlans.reduce((a, p) => a + Number(p.duration_min), 0);
+      state.totalPrice = state.selectedPlans.reduce((a, p) => a + Number(p.price), 0);
+
+      // 表示更新
+      const names = state.selectedPlans.map(p => p.plan_name).join(" + ");
+      $(summaryId).innerHTML = state.selectedPlans.length
+        ? `選択中：<b>${escapeHtml(names)}</b><br>合計：<b>${state.totalDurationMin}分</b> / <b>¥${Number(state.totalPrice).toLocaleString()}</b>`
+        : "プランを選択してください（複数選択可）";
+
+      const btn = $("btnPlanDecide");
+      btn.disabled = state.selectedPlans.length === 0;
+      // 右上の選択中プラン表示も更新
+      $("selectedPlanBox").textContent = state.selectedPlans.length
+        ? `${names}（${state.totalDurationMin}分 / ¥${Number(state.totalPrice).toLocaleString()}）`
+        : "—";
     });
+
     list.appendChild(el);
+  });
+
+  list.appendChild(footer);
+
+  $("btnPlanDecide").addEventListener("click", async () => {
+    // 週の起点
+    state.weekStart = startOfWeek(new Date());
+    await loadAvailabilityWeek(); // 週表示取得
+    gotoStep(2);
   });
 }
 
@@ -428,18 +495,18 @@ function renderSlots() {
 }
 
 function buildConfirm() {
-  const plan = state.selectedPlan;
   const start = state.selectedStartAt;
-  if (!plan || !start) return;
+  if (!state.selectedPlans.length || !start) return;
 
   const startDt = new Date(start);
-  const endDt = new Date(startDt.getTime() + Number(plan.duration_min) * 60 * 1000);
+  const endDt = new Date(startDt.getTime() + Number(state.totalDurationMin) * 60 * 1000);
+  const names = state.selectedPlans.map(p => p.plan_name).join(" + ");
 
   $("confirmBox").innerHTML = `
-    <div><b>プラン</b>：${escapeHtml(plan.plan_name)}</div>
+    <div><b>プラン</b>：${escapeHtml(names)}</div>
     <div><b>日時</b>：${escapeHtml(fmtJstDateTime(startDt))} 〜 ${escapeHtml(fmtTime(endDt))}</div>
-    <div><b>所要時間</b>：${Number(plan.duration_min)}分</div>
-    <div><b>料金</b>：¥${Number(plan.price).toLocaleString()}</div>
+    <div><b>所要時間（合計）</b>：${Number(state.totalDurationMin)}分</div>
+    <div><b>料金（合計）</b>：¥${Number(state.totalPrice).toLocaleString()}</div>
   `;
 }
 
@@ -457,7 +524,7 @@ async function reserve() {
     const r = await apiPost({
       action: "reserve",
       line_user_id: state.lineUserId,
-      plan_id: state.selectedPlan.plan_id,
+      plan_ids: state.selectedPlans.map(p => p.plan_id),
       start_at: state.selectedStartAt,
     });
 
@@ -568,4 +635,184 @@ function escapeHtml(s) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function startOfWeek(d){
+  // 月曜始まり
+  const x = new Date(d);
+  const day = (x.getDay() + 6) % 7; // Mon=0 ... Sun=6
+  x.setHours(0,0,0,0);
+  x.setDate(x.getDate() - day);
+  return x;
+}
+function shiftWeek(days){
+  if (!state.weekStart) state.weekStart = startOfWeek(new Date());
+  const x = new Date(state.weekStart);
+  x.setDate(x.getDate() + days);
+  state.weekStart = x;
+}
+function addDays(d, n){
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function ymd(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+function dowJa(d){
+  return ["日","月","火","水","木","金","土"][d.getDay()];
+}
+
+async function loadAvailabilityWeek() {
+  setError("");
+  if (!state.selectedPlan) return;
+
+  setStatus("空き枠（週）を取得中…");
+  $("slotHint").textContent = "";
+  $("timeTableHead").innerHTML = "";
+  $("timeTableBody").innerHTML = "";
+
+  if (!state.weekStart) state.weekStart = startOfWeek(new Date());
+
+  try {
+    const r = await apiGet({
+      action: "availability_range",
+      from: ymd(state.weekStart),
+      days: "7",
+      plan_ids: state.selectedPlans.map(p => p.plan_id).join(","),
+      duration_min: String(state.totalDurationMin)
+    });
+
+    state.granMin = r.granularity_min;
+    state.businessOpen = r.business_open;
+    state.businessClose = r.business_close;
+
+    console.log("availability_range response:", r);
+    if (!r.ok) throw new Error(r.error || JSON.stringify(r));
+
+    $("slotHint").textContent = r.slot_source_hint || "";
+
+    // by_date を dayResults 形式に変換して描画
+    const dayResults = [...Array(7)].map((_, i) => {
+      const d = addDays(state.weekStart, i);
+      const key = ymd(d);
+      return { date: d, slots: (r.by_date && r.by_date[key]) ? r.by_date[key] : [] };
+    });
+
+    renderWeekTable(dayResults);
+
+    const from = ymd(state.weekStart);
+    const to = ymd(addDays(state.weekStart, 6));
+    $("weekLabel").textContent = `${from} 〜 ${to}`;
+
+    setStatus("空き枠を選択してください");
+    console.log("availability_range response:", r);
+    if (!r.ok) throw new Error(r.error || JSON.stringify(r));
+  } catch (e) {
+    console.error(e);
+    setStatus("空き枠取得に失敗");
+    setError(String(e?.message || e));
+  }
+}
+
+function renderWeekTable(dayResults){
+  console.log("renderWeekTable dayResults:", dayResults);
+  // dayResults: [{date, slots:[iso...]}, ...7]
+
+  // 表の縦軸（時間）を営業時間と粒度で固定生成（×も表示するため）
+  const BUSINESS_OPEN = state.businessOpen || "09:00";
+  const BUSINESS_CLOSE = state.businessClose || "18:00";
+  const GRAN_MIN = Number(state.granMin) || 30;
+
+  const times = buildTimes_(BUSINESS_OPEN, BUSINESS_CLOSE, GRAN_MIN);
+
+  // ヘッダー
+  $("timeTableHead").innerHTML = `
+    <tr>
+      <th>時間</th>
+      ${dayResults.map((dr)=>{
+        const d = dr.date;
+        const label = `${d.getMonth()+1}/${d.getDate()} (${dowJa(d)})`;
+        return `<th>${label}</th>`;
+      }).join("")}
+    </tr>
+  `;
+
+  // body
+  const rows = times.map(time => {
+    const tds = dayResults.map((dr)=>{
+      const iso = findIsoByDateAndTime_(dr.slots, dr.date, time);
+      const ok = !!iso;
+      const cls = ok ? "timeCell timeCell--ok" : "timeCell timeCell--ng";
+      const badge = ok ? `<span class="badge badge--ok">○</span>` : `<span class="badge badge--ng">×</span>`;
+      const dataAttr = ok ? `data-iso="${iso}"` : "";
+      return `<td><div class="${cls}" ${dataAttr}>${badge}</div></td>`;
+    }).join("");
+
+    return `<tr><td>${time}</td>${tds}</tr>`;
+  }).join("");
+
+  $("timeTableBody").innerHTML = rows;
+
+  // クリックイベント（delegation）
+  const body = $("timeTableBody");
+  body.onclick = (ev) => {
+    const cell = ev.target.closest(".timeCell--ok");
+    if (!cell) return;
+    const iso = cell.getAttribute("data-iso");
+    if (!iso) return;
+
+    document.querySelectorAll(".timeCell--selected")
+      .forEach(x=>x.classList.remove("timeCell--selected"));
+    cell.classList.add("timeCell--selected");
+
+    state.selectedStartAt = iso;
+    buildConfirm();
+    gotoStep(3);
+  };
+}
+
+function findIsoByDateAndTime_(isos, dateObj, timeStr){
+  // isos: ["2026-02-22T10:00:00+09:00", ...]
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth()+1).padStart(2,"0");
+  const d = String(dateObj.getDate()).padStart(2,"0");
+  const prefix = `${y}-${m}-${d}T${timeStr}:`;
+  return isos.find(s => String(s).startsWith(prefix)) || null;
+}
+
+
+// ★ 追加：固定時間軸を生成（CONFIGと合わせるなら、この値もサーバから返してもOK）
+const BUSINESS_OPEN = "09:00";
+const BUSINESS_CLOSE = "18:00";
+const GRAN_MIN = 10; // CONFIGの granularity_min と合わせる
+
+function buildTimes_(openStr, closeStr, granMin){
+  const [oh, om] = openStr.split(":").map(Number);
+  const [ch, cm] = closeStr.split(":").map(Number);
+  const start = oh * 60 + om;
+  const end = ch * 60 + cm;
+  const out = [];
+  for (let t = start; t < end; t += granMin) {
+    const hh = String(Math.floor(t / 60)).padStart(2,"0");
+    const mm = String(t % 60).padStart(2,"0");
+    out.push(`${hh}:${mm}`);
+  }
+  return out;
+}
+
+
+function buildTimes_(openStr, closeStr, granMin){
+  const [oh, om] = openStr.split(":").map(Number);
+  const [ch, cm] = closeStr.split(":").map(Number);
+  const start = oh * 60 + om;
+  const end = ch * 60 + cm;
+
+  const out = [];
+  for (let t = start; t < end; t += granMin) {
+    const hh = String(Math.floor(t / 60)).padStart(2,"0");
+    const mm = String(t % 60).padStart(2,"0");
+    out.push(`${hh}:${mm}`);
+  }
+  return out;
 }
