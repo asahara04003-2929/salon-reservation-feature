@@ -1,11 +1,185 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <title>予約</title>
+
+  <!-- LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <script src="./api.js"></script>
+
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <h1>Hello, world ぶひぶひ</h1>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <div class="brand">
+        <div class="brand__mark">予約</div>
+        <div class="brand__sub" id="brandSub">LINE内で予約できます</div>
+      </div>
+      <button class="btn btn--ghost" id="btnMyPage" type="button">予約一覧</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Status / errors -->
+    <section class="card" id="statusCard">
+      <div class="row row--space">
+        <div>
+          <div class="muted">状態</div>
+          <div class="status" id="statusText">初期化中…</div>
+        </div>
+        <button class="btn btn--ghost" id="btnReload" type="button">再読込</button>
+      </div>
+      <div class="alert alert--error hidden" id="errorBox"></div>
+    </section>
+
+    <!-- Register -->
+    <section class="card hidden" id="registerCard">
+      <div class="card__head">
+        <h2>初回登録</h2>
+        <p class="muted">予約前に、必要情報の登録をお願いします。</p>
+      </div>
+
+      <form class="form" id="registerForm">
+        <div class="grid">
+          <label class="field">
+            <span class="field__label">氏名 <span class="req">必須</span></span>
+            <input class="input" name="name" autocomplete="name" placeholder="山田 太郎" required />
+          </label>
+
+          <label class="field">
+            <span class="field__label">ふりがな <span class="req">必須</span></span>
+            <input class="input" name="kana" placeholder="やまだ たろう" required />
+          </label>
+
+          <label class="field">
+            <span class="field__label">性別 <span class="req">必須</span></span>
+            <select class="select" name="gender" required>
+              <option value="">選択してください</option>
+              <option value="male">男性</option>
+              <option value="female">女性</option>
+              <option value="other">その他</option>
+              <option value="na">回答しない</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="field__label">電話番号 <span class="req">必須</span></span>
+            <input class="input" name="phone" inputmode="tel" autocomplete="tel" placeholder="09012345678" required />
+            <span class="field__help">ハイフンなし推奨（自動で除去します）</span>
+          </label>
+
+          <label class="field">
+            <span class="field__label">メールアドレス（任意）</span>
+            <input class="input" name="email" inputmode="email" autocomplete="email" placeholder="taro@example.com" />
+          </label>
+        </div>
+
+        <div class="row row--end">
+          <button class="btn btn--primary" type="submit" id="btnRegister">登録して予約へ</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- Booking -->
+    <section class="card hidden" id="bookingCard">
+      <div class="card__head">
+        <h2>予約</h2>
+        <p class="muted">プランと日時を選択してください。</p>
+      </div>
+
+      <div class="stepper">
+        <div class="stepper__item stepper__item--active" id="step1">1. プラン</div>
+        <div class="stepper__item" id="step2">2. 日時</div>
+        <div class="stepper__item" id="step3">3. 確認</div>
+        <div class="stepper__item" id="step4">4. 完了</div>
+      </div>
+
+      <!-- Step 1 -->
+      <section class="panel" id="panelPlan">
+        <div class="panel__head">
+          <h3>プランを選択</h3>
+        </div>
+        <div class="list" id="planList"></div>
+      </section>
+
+      <!-- Step 2 -->
+      <section class="panel hidden" id="panelDateTime">
+        <div class="panel__head row row--space">
+          <h3>日時を選択</h3>
+          <button class="btn btn--ghost" id="btnBackToPlan" type="button">← プランに戻る</button>
+        </div>
+
+        <div class="grid grid--2">
+          <label class="field">
+            <span class="field__label">日付</span>
+            <input class="input" type="date" id="dateInput" />
+          </label>
+
+          <div class="field">
+            <span class="field__label">選択中のプラン</span>
+            <div class="summary" id="selectedPlanBox">—</div>
+          </div>
+        </div>
+
+        <div class="muted small" id="slotHint"></div>
+
+        <div class="slotGrid" id="slotGrid"></div>
+      </section>
+
+      <!-- Step 3 -->
+      <section class="panel hidden" id="panelConfirm">
+        <div class="panel__head row row--space">
+          <h3>内容確認</h3>
+          <button class="btn btn--ghost" id="btnBackToDateTime" type="button">← 日時に戻る</button>
+        </div>
+
+        <div class="confirmBox" id="confirmBox"></div>
+
+        <div class="row row--end">
+          <button class="btn btn--primary" id="btnConfirmReserve" type="button">この内容で予約する</button>
+        </div>
+      </section>
+
+      <!-- Step 4 -->
+      <section class="panel hidden" id="panelDone">
+        <div class="panel__head">
+          <h3>予約完了</h3>
+        </div>
+
+        <div class="doneBox" id="doneBox"></div>
+
+        <div class="row row--space">
+          <button class="btn btn--ghost" id="btnNewBooking" type="button">別の予約をする</button>
+          <button class="btn btn--primary" id="btnGoMyPage" type="button">予約一覧へ</button>
+        </div>
+      </section>
+    </section>
+
+    <!-- My Page -->
+    <section class="card hidden" id="myPageCard">
+      <div class="card__head row row--space">
+        <div>
+          <h2>予約一覧</h2>
+          <p class="muted">確定済みの予約を表示します。</p>
+        </div>
+        <button class="btn btn--ghost" id="btnBackHome" type="button">← 戻る</button>
+      </div>
+
+      <div class="list" id="reservationList"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="muted small">
+      ※ 予約枠の粒度・受付不可日時はスプレッドシートの <b>SLOTS</b> を編集して変更できます。
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
 </body>
 </html>
