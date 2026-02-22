@@ -79,12 +79,21 @@ function fmtJstDateTime(dateStrOrDate) {
  * state
  */
 const state = {
-  lineUserId: null, // ※静的Web運用中は「仮ユーザーID」を入れる
+  lineUserId: null,
   user: null,
   plans: [],
-  selectedPlan: null,
-  selectedDate: null,
-  availableSlots: [],
+
+  // 複数選択
+  selectedPlans: [],
+  totalDurationMin: 0,
+  totalPrice: 0,
+
+  // 週表示
+  weekStart: null,
+  granMin: null,
+  businessOpen: null,
+  businessClose: null,
+
   selectedStartAt: null,
   lastReservation: null,
 };
@@ -229,14 +238,19 @@ function wireEvents() {
   });
 
   $("btnNewBooking")?.addEventListener("click", async () => {
-    state.selectedPlan = null;
-    state.selectedDate = null;
-    state.availableSlots = [];
+    state.selectedPlans = [];
+    state.totalDurationMin = 0;
+    state.totalPrice = 0;
     state.selectedStartAt = null;
-    $("dateInput").value = "";
-    $("slotGrid").innerHTML = "";
-    $("selectedPlanBox").textContent = "—";
+
+    // テーブルを初期化
+    $("timeTableHead") && ($("timeTableHead").innerHTML = "");
+    $("timeTableBody") && ($("timeTableBody").innerHTML = "");
+
+    $("selectedPlanBox") && ($("selectedPlanBox").textContent = "—");
+
     gotoStep(1);
+    renderPlans();
   });
 
   $("btnPrevWeek")?.addEventListener("click", async () => {
@@ -513,7 +527,7 @@ function buildConfirm() {
 async function reserve() {
   setError("");
 
-  if (!state.selectedPlan || !state.selectedStartAt) {
+  if (!state.selectedPlans || state.selectedPlans.length === 0 || !state.selectedStartAt) {
     setError("プランと日時を選択してください。");
     return;
   }
@@ -535,7 +549,7 @@ async function reserve() {
     $("doneBox").innerHTML = `
       <div><b>予約番号</b>：${escapeHtml(r.reservation.reservation_id || "")}</div>
       <div><b>日時</b>：${escapeHtml(fmtJstDateTime(r.reservation.reserved_start))} 〜 ${escapeHtml(fmtJstDateTime(r.reservation.reserved_end))}</div>
-      <div><b>プラン</b>：${escapeHtml(r.reservation.plan?.plan_name || state.selectedPlan.plan_name)}</div>
+      <div><b>プラン</b>：${escapeHtml(r.reservation.plan_names || "")}</div>
       <div class="muted small">キャンセルは「予約一覧」から可能です。</div>
     `;
 
@@ -665,12 +679,22 @@ function dowJa(d){
 
 async function loadAvailabilityWeek() {
   setError("");
-  if (!state.selectedPlan) return;
+
+  // ★ 複数選択対応：selectedPlansで判定
+  if (!state.selectedPlans || state.selectedPlans.length === 0) {
+    setError("プランを選択してください。");
+    return;
+  }
+  if (!state.totalDurationMin || state.totalDurationMin <= 0) {
+    setError("所要時間（合計）が不正です。");
+    return;
+  }
 
   setStatus("空き枠（週）を取得中…");
-  $("slotHint").textContent = "";
-  $("timeTableHead").innerHTML = "";
-  $("timeTableBody").innerHTML = "";
+
+  $("slotHint") && ($("slotHint").textContent = "");
+  $("timeTableHead") && ($("timeTableHead").innerHTML = "");
+  $("timeTableBody") && ($("timeTableBody").innerHTML = "");
 
   if (!state.weekStart) state.weekStart = startOfWeek(new Date());
 
@@ -679,20 +703,22 @@ async function loadAvailabilityWeek() {
       action: "availability_range",
       from: ymd(state.weekStart),
       days: "7",
+      // plan_ids は送ってもいいが、GASが使わなくてもOK（duration_minが本命）
       plan_ids: state.selectedPlans.map(p => p.plan_id).join(","),
-      duration_min: String(state.totalDurationMin)
+      duration_min: String(state.totalDurationMin),
     });
 
+    console.log("availability_range response:", r);
+
+    if (!r.ok) throw new Error(r.error || JSON.stringify(r));
+
+    // ★ r.ok 確認後に反映
     state.granMin = r.granularity_min;
     state.businessOpen = r.business_open;
     state.businessClose = r.business_close;
 
-    console.log("availability_range response:", r);
-    if (!r.ok) throw new Error(r.error || JSON.stringify(r));
+    $("slotHint") && ($("slotHint").textContent = r.slot_source_hint || "");
 
-    $("slotHint").textContent = r.slot_source_hint || "";
-
-    // by_date を dayResults 形式に変換して描画
     const dayResults = [...Array(7)].map((_, i) => {
       const d = addDays(state.weekStart, i);
       const key = ymd(d);
@@ -703,11 +729,9 @@ async function loadAvailabilityWeek() {
 
     const from = ymd(state.weekStart);
     const to = ymd(addDays(state.weekStart, 6));
-    $("weekLabel").textContent = `${from} 〜 ${to}`;
+    $("weekLabel") && ($("weekLabel").textContent = `${from} 〜 ${to}`);
 
     setStatus("空き枠を選択してください");
-    console.log("availability_range response:", r);
-    if (!r.ok) throw new Error(r.error || JSON.stringify(r));
   } catch (e) {
     console.error(e);
     setStatus("空き枠取得に失敗");
@@ -792,21 +816,6 @@ function buildTimes_(openStr, closeStr, granMin){
   const [ch, cm] = closeStr.split(":").map(Number);
   const start = oh * 60 + om;
   const end = ch * 60 + cm;
-  const out = [];
-  for (let t = start; t < end; t += granMin) {
-    const hh = String(Math.floor(t / 60)).padStart(2,"0");
-    const mm = String(t % 60).padStart(2,"0");
-    out.push(`${hh}:${mm}`);
-  }
-  return out;
-}
-
-
-function buildTimes_(openStr, closeStr, granMin){
-  const [oh, om] = openStr.split(":").map(Number);
-  const [ch, cm] = closeStr.split(":").map(Number);
-  const start = oh * 60 + om;
-  const end = ch * 60 + cm;
 
   const out = [];
   for (let t = start; t < end; t += granMin) {
@@ -816,3 +825,5 @@ function buildTimes_(openStr, closeStr, granMin){
   }
   return out;
 }
+
+
