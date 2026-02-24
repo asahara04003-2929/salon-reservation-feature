@@ -827,3 +827,43 @@ function buildTimes_(openStr, closeStr, granMin){
 }
 
 
+/********************************************************************
+ * ✅ JS側（予約画面：プラン一覧に説明文を表示、100文字で崩れない）
+ * 1) renderPlans() の plan行HTMLを差し替え（下のブロック）
+ * 2) 追加CSS（style.css か <style>）を貼る
+ ********************************************************************/
+
+/** 100文字までで表示（それ以上は…にする） */
+function clamp100_(s) {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  return t.length > 100 ? (t.slice(0, 100) + "…") : t;
+}
+
+/** 改行も軽く整形して出したい場合（任意） */
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+// renderPlans() 内、state.plans.forEach(plan => { ... }) の中で
+// el.innerHTML = `...` の部分を ↓ に差し替え
+// （他のロジックはそのままでOK）
+el.innerHTML = `
+  <div class="row row--space">
+    <div style="min-width:0;">
+      <div class="item__title">${escapeHtml(plan.plan_name)}</div>
+      <div class="item__meta">所要時間: ${Number(plan.duration_min)}分 / 料金: ¥${Number(plan.price).toLocaleString()}</div>
+
+      ${plan.descriptions ? `<div class="planDesc">${escapeHtml(clamp100_(plan.descriptions))}</div>` : ``}
+    </div>
+
+    <label class="row" style="gap:8px; flex-shrink:0;">
+      <input type="checkbox" id="${id}" data-plan-id="${escapeHtml(plan.plan_id)}" />
+      <span class="muted">選択</span>
+    </label>
+  </div>
+`;

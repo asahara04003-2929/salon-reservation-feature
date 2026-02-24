@@ -366,3 +366,19 @@ a{ color:inherit; }
 
 .badge--ok{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.45); }
 .badge--ng{ color: rgba(148,163,184,.85); }
+
+/* ✅ CSS（100文字まで崩れない見た目）
+   ・長文でも折り返す
+   ・行が長くても親をはみ出さない
+*/
+.planDesc{
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #666;
+
+  /* レイアウト崩れ防止 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
