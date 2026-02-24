@@ -371,13 +371,13 @@ a{ color:inherit; }
    ・長文でも折り返す
    ・行が長くても親をはみ出さない
 */
+.planInfo { min-width: 0; }  /* 横並びで説明が潰れない */
+
 .planDesc{
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.4;
   color: #666;
-
-  /* レイアウト崩れ防止 */
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;

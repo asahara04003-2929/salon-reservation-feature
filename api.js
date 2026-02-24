@@ -402,11 +402,13 @@ function renderPlans() {
     const id = `plan_${plan.plan_id}`;
     el.innerHTML = `
       <div class="row row--space">
-        <div>
+        <div class="planInfo">
           <div class="item__title">${escapeHtml(plan.plan_name)}</div>
           <div class="item__meta">所要時間: ${Number(plan.duration_min)}分 / 料金: ¥${Number(plan.price).toLocaleString()}</div>
+          ${plan.descriptions ? `<div class="planDesc">${escapeHtml(clamp100_(plan.descriptions))}</div>` : ``}
         </div>
-        <label class="row" style="gap:8px;">
+
+        <label class="row" style="gap:8px; flex-shrink:0;">
           <input type="checkbox" id="${id}" data-plan-id="${escapeHtml(plan.plan_id)}" />
           <span class="muted">選択</span>
         </label>
@@ -849,21 +851,3 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-// renderPlans() 内、state.plans.forEach(plan => { ... }) の中で
-// el.innerHTML = `...` の部分を ↓ に差し替え
-// （他のロジックはそのままでOK）
-el.innerHTML = `
-  <div class="row row--space">
-    <div style="min-width:0;">
-      <div class="item__title">${escapeHtml(plan.plan_name)}</div>
-      <div class="item__meta">所要時間: ${Number(plan.duration_min)}分 / 料金: ¥${Number(plan.price).toLocaleString()}</div>
-
-      ${plan.descriptions ? `<div class="planDesc">${escapeHtml(clamp100_(plan.descriptions))}</div>` : ``}
-    </div>
-
-    <label class="row" style="gap:8px; flex-shrink:0;">
-      <input type="checkbox" id="${id}" data-plan-id="${escapeHtml(plan.plan_id)}" />
-      <span class="muted">選択</span>
-    </label>
-  </div>
-`;
