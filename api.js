@@ -405,7 +405,7 @@ function renderPlans() {
         <div class="planInfo">
           <div class="item__title">${escapeHtml(plan.plan_name)}</div>
           <div class="item__meta">所要時間: ${Number(plan.duration_min)}分 / 料金: ¥${Number(plan.price).toLocaleString()}</div>
-          ${plan.descriptions ? `<div class="planDesc">${escapeHtml(clamp100_(plan.descriptions))}</div>` : ``}
+          ${plan.descriptions ? `<div class="planDesc">${escapeHtmlWithBreaks(clamp100_(plan.descriptions))}</div>` : ``}
         </div>
 
         <label class="row" style="gap:8px; flex-shrink:0;">
@@ -837,7 +837,7 @@ function buildTimes_(openStr, closeStr, granMin){
 
 /** 100文字までで表示（それ以上は…にする） */
 function clamp100_(s) {
-  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  const t = String(s ?? "").trim(); // ← 改行は残す
   return t.length > 100 ? (t.slice(0, 100) + "…") : t;
 }
 
@@ -851,3 +851,17 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
+function escapeHtmlWithBreaks(s) {
+  // 1) いったん全部エスケープ（<br>も文字として扱われる）
+  let t = escapeHtml(s);
+
+  // 2) \n を <br> に変換（Windows改行にも対応）
+  t = t.replace(/\r\n|\r|\n/g, "<br>");
+
+  // 3) ユーザーが <br> と書いたものも改行として扱いたい場合：
+  //    エスケープ後は &lt;br&gt; / &lt;br/&gt; / &lt;br /&gt; になっているので、それだけ復活
+  t = t
+    .replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+
+  return t;
+}
