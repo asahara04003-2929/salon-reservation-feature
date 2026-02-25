@@ -12,6 +12,35 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxpVHAXUQoPB1tgXqXT_Syy
  */
 const LIFF_ID = "2009221487-PnLfRf5u";
 
+/**
+ * API：GET/POST
+ */
+async function apiGet(params) {
+  showLoading("読み込み中…");
+  try{
+    const url = new URL(GAS_URL);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    const res = await fetch(url.toString(), { method: "GET" });
+    return await res.json();
+  } finally {
+    hideLoading();
+  }
+}
+
+async function apiPost(payload) {
+  showLoading("処理中…");
+  try{
+    const res = await fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    try { return JSON.parse(text); }
+    catch { return { ok:false, error:"INVALID_JSON_RESPONSE", raw:text }; }
+  } finally {
+    hideLoading();
+  }
+}
 
 /**
  * UI helpers
