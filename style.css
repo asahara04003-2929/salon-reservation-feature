@@ -302,10 +302,10 @@ a{ color:inherit; }
 }
 
 .timeTable{
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  min-width: 760px; /* PCで見やすく */
 }
 
 .timeTable th, .timeTable td{
@@ -418,6 +418,19 @@ a{ color:inherit; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 480px){
+  #panelDateTime .row{
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #panelDateTime .row .btn{
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .timeTable{
+    min-width: 620px;   /* ← ここを調整(560〜680くらいで好み) */
+  }
+
   .timeTable th, .timeTable td{
     padding: 6px 6px;     /* 8x10 → 6x6 */
     font-size: 12px;      /* 13 → 12 */
