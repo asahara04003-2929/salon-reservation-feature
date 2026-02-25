@@ -715,10 +715,14 @@ async function loadAvailabilityWeek() {
       // renderWeekTable は iso を探す実装になってるので、
       // いったん "YYYY-MM-DDTHH:mm:00+09:00" 形式の疑似ISO文字列にして渡す
       // （最小修正で済ませるため）
-      const pseudoIsos = starts.map(min => {
-        const hhmm = minToHHMM_(min);
-        return `${key}T${hhmm}:00+09:00`;
-      });
+      const minStartIso = new Date(Date.now() + Number(r.granularity_min) * 60000);
+
+      const pseudoIsos = starts
+        .map(min => {
+          const hhmm = minToHHMM_(min);
+          return `${key}T${hhmm}:00+09:00`;
+        })
+        .filter(iso => new Date(iso).getTime() > minStartIso.getTime()); // ★ここ
 
       return { date: d, slots: pseudoIsos };
     });
