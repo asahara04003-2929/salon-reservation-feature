@@ -12,7 +12,7 @@
 }
 
 *{ box-sizing: border-box; }
-html,body{ height:100%; }
+html, body { overflow-x: hidden; }
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif;
@@ -293,8 +293,10 @@ a{ color:inherit; }
 
 .timeTableWrap{
   margin-top: 12px;
-  overflow-x: auto;                 /* 横だけスクロール */
-  overflow-y: hidden;               /* 縦は基本隠す */
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   border-radius: 14px;
   border: 1px solid rgba(148,163,184,.18);
@@ -302,8 +304,8 @@ a{ color:inherit; }
 }
 
 .timeTable{
-  width: max-content;
-  min-width: 100%;
+  width: max-content;     /* ← これが重要：中身の幅で伸びる */
+  min-width: 760px;       /* PCの見やすさ維持 */
   border-collapse: separate;
   border-spacing: 0;
 }
