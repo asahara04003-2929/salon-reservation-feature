@@ -7,13 +7,10 @@ const GAS_URL = "https://script.google.com/macros/s/AKfycbxpVHAXUQoPB1tgXqXT_Syy
 
 /**
  * ============================
- * LINE公式アカウント（LIFF）適用時にコメントを外してください
+ * LINE公式アカウント（LIFF）
  * ============================
  */
-// const LIFF_ID = "YOUR_LIFF_ID";
-// ※ index.html に以下も必要
-// <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-
+const LIFF_ID = "2009221487-PnLfRf5u";
 
 /**
  * API：GET/POST
@@ -98,64 +95,46 @@ const state = {
   lastReservation: null,
 };
 
-/**
- * ============================
- * 静的Webページ用：仮ユーザーIDの決定ロジック
- * - URLクエリ ?uid=xxx があればそれを使う
- * - なければ localStorage に保存されたIDを使う
- * - なければ新規生成して保存する
- * ============================
- */
-function resolveStaticUserId_() {
-  const params = new URLSearchParams(location.search);
-  const uidFromQuery = (params.get("uid") || "").trim();
-  if (uidFromQuery) {
-    localStorage.setItem("STATIC_UID", uidFromQuery);
-    return uidFromQuery;
-  }
 
-  const saved = (localStorage.getItem("STATIC_UID") || "").trim();
-  if (saved) return saved;
-
-  const gen = `WEB-${cryptoRandomId_()}`;
-  localStorage.setItem("STATIC_UID", gen);
-  return gen;
-}
-
-function cryptoRandomId_() {
-  // ブラウザのcryptoが使えればそれを使用
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    const a = new Uint8Array(16);
-    crypto.getRandomValues(a);
-    return [...a].map(b => b.toString(16).padStart(2,"0")).join("");
-  }
-  // フォールバック
-  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`;
-}
 
 /**
  * 初期化：静的Webとして起動
  */
 document.addEventListener("DOMContentLoaded", () => {
-  initStaticWeb();
+  initLiff();
 });
+
 
 /**
  * ============================
- * 静的Web起動（LIFF無し）
+ * LINE公式アカウント（LIFF）
  * ============================
  */
-async function initStaticWeb() {
+async function initLiff() {
   wireEvents();
 
   try {
+    setStatus("LIFF初期化中…");
     setError("");
-    setStatus("初期化中…");
 
-    // 静的WebではLINE userIdが取れないため、仮IDを使用
-    state.lineUserId = resolveStaticUserId_();
+    await liff.init({ liffId: LIFF_ID });
 
-    setStatus(`ユーザー確認中…（UID: ${state.lineUserId}）`);
+    // LINEアプリ内必須（要件に合わせて厳格化）
+    if (!liff.isInClient()) {
+      setStatus("LINEアプリ内で開いてください（LIFF）");
+      setError("このページはLINEアプリ内（LIFF）でのみ利用できます。");
+      return;
+    }
+
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
+    const profile = await liff.getProfile();
+    state.lineUserId = profile.userId;
+
+    setStatus("ユーザー確認中…");
     await loadPlans();
     await checkUser();
 
@@ -166,46 +145,6 @@ async function initStaticWeb() {
     setError(String(e?.message || e));
   }
 }
-
-/**
- * ============================
- * LINE公式アカウント（LIFF）適用時にコメントを外してください
- * ============================
- */
-// async function initLiff() {
-//   wireEvents();
-//
-//   try {
-//     setStatus("LIFF初期化中…");
-//     setError("");
-//
-//     await liff.init({ liffId: LIFF_ID });
-//
-//     // LINE外ブラウザの場合
-//     if (!liff.isInClient()) {
-//       setStatus("LINEアプリ内で開いてください（LIFF）");
-//       return;
-//     }
-//
-//     // 未ログインならログイン
-//     if (!liff.isLoggedIn()) {
-//       liff.login();
-//       return;
-//     }
-//
-//     const profile = await liff.getProfile();
-//     state.lineUserId = profile.userId;
-//
-//     setStatus("ユーザー確認中…");
-//     await loadPlans();
-//     await checkUser();
-//
-//   } catch (e) {
-//     console.error(e);
-//     setStatus("初期化に失敗");
-//     setError(String(e?.message || e));
-//   }
-// }
 
 /**
  * events
@@ -329,9 +268,7 @@ function setDefaultDate() {
  * Registration
  */
 async function registerUser() {
-  if (!state.lineUserId) {
-  state.lineUserId = resolveStaticUserId_(); // 静的Web用の仮UID生成
-  }
+
   setError("");
   setStatus("登録中…");
 
@@ -864,4 +801,44 @@ function escapeHtmlWithBreaks(s) {
     .replace(/&lt;br\s*\/?&gt;/gi, "<br>");
 
   return t;
+}
+
+
+function showLoading(msg){
+  const ov = $("loadingOverlay");
+  const tx = $("loadingText");
+  if (tx) tx.textContent = msg || "読み込み中…";
+  if (ov) ov.classList.remove("hidden");
+}
+function hideLoading(){
+  const ov = $("loadingOverlay");
+  if (ov) ov.classList.add("hidden");
+}
+
+// apiGet/apiPostを「ローディング付き」にする（全APIが対象になる）
+async function apiGet(params) {
+  showLoading("読み込み中…");
+  try{
+    const url = new URL(GAS_URL);
+    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+    const res = await fetch(url.toString(), { method: "GET" });
+    return await res.json();
+  } finally {
+    hideLoading();
+  }
+}
+
+async function apiPost(payload) {
+  showLoading("処理中…");
+  try{
+    const res = await fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    const text = await res.text();
+    try { return JSON.parse(text); }
+    catch { return { ok:false, error:"INVALID_JSON_RESPONSE", raw:text }; }
+  } finally {
+    hideLoading();
+  }
 }
