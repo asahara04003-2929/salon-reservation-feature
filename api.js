@@ -77,6 +77,7 @@ function fmtJstDateTime(dateStrOrDate) {
  */
 const state = {
   lineUserId: null,
+  nickName: null,   // ★追加
   user: null,
   plans: [],
 
@@ -133,6 +134,7 @@ async function initLiff() {
 
     const profile = await liff.getProfile();
     state.lineUserId = profile.userId;
+    state.nickName = profile.displayName || ""; // ★追加
 
     setStatus("ユーザー確認中…");
     await loadPlans();
@@ -276,6 +278,7 @@ async function registerUser() {
   const payload = {
     action: "users_upsert",
     line_user_id: state.lineUserId,
+    nick_name: state.nickName || "",  // ★追加
     name: String(fd.get("name") || "").trim(),
     kana: String(fd.get("kana") || "").trim(),
     gender: String(fd.get("gender") || "").trim(),
