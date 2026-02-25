@@ -780,8 +780,9 @@ function renderWeekTable(dayResults){
 
   $("timeTableBody").innerHTML = rows;
 
-  // ★追加：同期を有効化（初回だけでOK）
-  syncTopbarScrollWithTable();
+  // ✅ ここに追加（必ずinnerHTMLの後）
+  syncTopbarToTableWidthAndScroll();
+
 
   // ✅ ここを追加（DOMに反映し終わった直後）
   afterRenderSlotsFix();
@@ -934,24 +935,42 @@ function afterRenderSlotsFix() {
   });
 }
 
-function syncTopbarScrollWithTable(){
+
+function syncTopbarToTableWidthAndScroll(){
   const topbar = document.querySelector(".topbar");
-  const wrap = document.querySelector(".timeTableWrap");
-  if (!topbar || !wrap) return;
+  const inner  = document.querySelector(".topbar__inner");
+  const wrap   = document.querySelector(".timeTableWrap");
+  const table  = document.querySelector(".timeTableWrap .timeTable");
+  if (!topbar || !inner || !wrap || !table) return;
 
-  let lock = false;
+  // ① 幅を合わせる（これが“変わらない”を解消する本命）
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const w = Math.ceil(table.scrollWidth);
+      document.documentElement.style.setProperty("--topbarW", `${w}px`);
 
-  wrap.addEventListener("scroll", () => {
-    if (lock) return;
-    lock = true;
-    topbar.scrollLeft = wrap.scrollLeft;
-    lock = false;
-  }, { passive: true });
+      // ② スクロール同期（必要なら）
+      // 既にイベントを付けてたら二重登録しない
+      if (topbar.dataset.synced === "1") return;
+      topbar.dataset.synced = "1";
 
-  topbar.addEventListener("scroll", () => {
-    if (lock) return;
-    lock = true;
-    wrap.scrollLeft = topbar.scrollLeft;
-    lock = false;
-  }, { passive: true });
+      let lock = false;
+      wrap.addEventListener("scroll", () => {
+        if (lock) return;
+        lock = true;
+        topbar.scrollLeft = wrap.scrollLeft;
+        lock = false;
+      }, { passive: true });
+
+      topbar.addEventListener("scroll", () => {
+        if (lock) return;
+        lock = true;
+        wrap.scrollLeft = topbar.scrollLeft;
+        lock = false;
+      }, { passive: true });
+
+      // 初期位置合わせ
+      topbar.scrollLeft = wrap.scrollLeft;
+    });
+  });
 }
