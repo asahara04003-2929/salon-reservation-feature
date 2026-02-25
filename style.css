@@ -22,6 +22,7 @@ body{
 
 a{ color:inherit; }
 
+/* ヘッダー自体を横スクロール可能にする */
 .topbar{
   position: sticky;
   top:0;
@@ -29,10 +30,18 @@ a{ color:inherit; }
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(10px);
   background: rgba(11,18,32,.78);
+
+  overflow-x: auto;                 /* ★追加 */
+  overflow-y: hidden;               /* ★追加 */
+  -webkit-overflow-scrolling: touch;/* ★追加 */
 }
+
+/* 内側は“内容幅”で広がる（テーブルと同じ発想） */
 .topbar__inner{
-  /* 980px をデフォルトにして、JSで --pageMaxW を上書きできるようにする */
-  max-width: var(--pageMaxW, 980px);
+  width: max-content;               /* ★追加：広がれるようにする */
+  min-width: 100%;                  /* ★追加：狭い時は画面幅に合わせる */
+  max-width: none;                  /* ★変更：980px制限を解除 */
+
   margin: 0 auto;
   padding: 12px 16px;
   display:flex;

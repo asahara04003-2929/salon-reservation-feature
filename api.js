@@ -780,8 +780,8 @@ function renderWeekTable(dayResults){
 
   $("timeTableBody").innerHTML = rows;
 
-  // ✅ ここに追加
-  syncTopbarWidthToTable();
+  // ★追加：同期を有効化（初回だけでOK）
+  syncTopbarScrollWithTable();
 
   // ✅ ここを追加（DOMに反映し終わった直後）
   afterRenderSlotsFix();
@@ -934,21 +934,24 @@ function afterRenderSlotsFix() {
   });
 }
 
-function syncTopbarWidthToTable() {
+function syncTopbarScrollWithTable(){
+  const topbar = document.querySelector(".topbar");
   const wrap = document.querySelector(".timeTableWrap");
-  const table = document.querySelector(".timeTableWrap .timeTable");
-  if (!wrap || !table) return;
+  if (!topbar || !wrap) return;
 
-  // テーブルの実幅（列数ぶん）を取得
-  const tableW = table.scrollWidth || table.getBoundingClientRect().width;
+  let lock = false;
 
-  // 画面幅より小さいなら 980px のままでOK（無駄に広げない）
-  const viewportW = document.documentElement.clientWidth;
-  if (tableW <= viewportW) {
-    document.documentElement.style.setProperty("--pageMaxW", "980px");
-    return;
-  }
+  wrap.addEventListener("scroll", () => {
+    if (lock) return;
+    lock = true;
+    topbar.scrollLeft = wrap.scrollLeft;
+    lock = false;
+  }, { passive: true });
 
-  // ヘッダーも同じ“見た目の幅”にする
-  document.documentElement.style.setProperty("--pageMaxW", `${Math.ceil(tableW)}px`);
+  topbar.addEventListener("scroll", () => {
+    if (lock) return;
+    lock = true;
+    wrap.scrollLeft = topbar.scrollLeft;
+    lock = false;
+  }, { passive: true });
 }
