@@ -12,7 +12,7 @@
 }
 
 *{ box-sizing: border-box; }
-html, body { overflow-x: hidden; }
+html, body { overflow-x: visible; }
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif;
@@ -63,6 +63,7 @@ a{ color:inherit; }
   padding: 0 16px;
   display: grid;
   gap: 14px;
+  overflow-x: hidden; /* ここは hidden でもOK（中の timeTableWrap は overflow-x:auto でスクロールできる） */
 }
 
 .card{
@@ -294,13 +295,14 @@ a{ color:inherit; }
 .timeTableWrap{
   margin-top: 12px;
   width: 100%;
-  max-width: 100%;
+  max-width: calc(100vw - 32px);
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   border-radius: 14px;
   border: 1px solid rgba(148,163,184,.18);
   background: rgba(2,6,23,.25);
+  touch-action: pan-x;
 }
 
 .timeTable{
