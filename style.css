@@ -63,7 +63,6 @@ a{ color:inherit; }
   padding: 0 16px;
   display: grid;
   gap: 14px;
-  overflow-x: hidden; /* ここは hidden でもOK（中の timeTableWrap は overflow-x:auto でスクロールできる） */
 }
 
 .card{
@@ -311,7 +310,6 @@ a{ color:inherit; }
   min-width: 760px;       /* PCの見やすさ維持 */
   border-collapse: separate;
   border-spacing: 0;
-  table-layout: fixed; /* 列幅の計算を安定させる */
 }
 
 .timeTable th, .timeTable td{
