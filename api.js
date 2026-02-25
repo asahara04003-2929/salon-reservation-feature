@@ -780,6 +780,9 @@ function renderWeekTable(dayResults){
 
   $("timeTableBody").innerHTML = rows;
 
+  // ✅ ここに追加
+  syncTopbarWidthToTable();
+
   // ✅ ここを追加（DOMに反映し終わった直後）
   afterRenderSlotsFix();
 
@@ -929,4 +932,23 @@ function afterRenderSlotsFix() {
       window.dispatchEvent(new Event("resize"));
     });
   });
+}
+
+function syncTopbarWidthToTable() {
+  const wrap = document.querySelector(".timeTableWrap");
+  const table = document.querySelector(".timeTableWrap .timeTable");
+  if (!wrap || !table) return;
+
+  // テーブルの実幅（列数ぶん）を取得
+  const tableW = table.scrollWidth || table.getBoundingClientRect().width;
+
+  // 画面幅より小さいなら 980px のままでOK（無駄に広げない）
+  const viewportW = document.documentElement.clientWidth;
+  if (tableW <= viewportW) {
+    document.documentElement.style.setProperty("--pageMaxW", "980px");
+    return;
+  }
+
+  // ヘッダーも同じ“見た目の幅”にする
+  document.documentElement.style.setProperty("--pageMaxW", `${Math.ceil(tableW)}px`);
 }
