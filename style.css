@@ -303,10 +303,11 @@ a{ color:inherit; }
 
 .timeTable{
   width: max-content;
-  min-width: 100%;
+  min-width: 760px;
   border-collapse: separate;
   border-spacing: 0;
 }
+
 
 .timeTable th, .timeTable td{
   border-right: 1px solid rgba(148,163,184,.12);
@@ -325,12 +326,19 @@ a{ color:inherit; }
   font-weight: 700;
 }
 
-.timeTable th:first-child, .timeTable td:first-child{
+/* 時間列（左）固定 */
+.timeTable th:first-child,
+.timeTable td:first-child{
   position: sticky;
   left: 0;
   background: rgba(11,18,32,.92);
-  z-index: 2; /* 1 → 2 */
+  z-index: 20;                 /* ← theadよりは低く */
   font-weight: 700;
+}
+
+/* 左上の交差セル（時間×日付の角）を最前面にする */
+.timeTable thead th:first-child{
+  z-index: 40;                 /* ← 最優先 */
 }
 
 .timeCell{
