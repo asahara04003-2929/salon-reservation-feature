@@ -395,8 +395,8 @@ function renderPlans() {
   $("btnPlanDecide").addEventListener("click", async () => {
     // 週の起点
     state.weekStart = startOfWeek(new Date());
-    await loadAvailabilityWeek(); // 週表示取得
     gotoStep(2);
+    await loadAvailabilityWeek(); // 週表示取得
   });
 }
 
@@ -943,18 +943,25 @@ function syncTopbarToTableWidthAndScroll(){
   const table  = document.querySelector(".timeTableWrap .timeTable");
   if (!topbar || !inner || !wrap || !table) return;
 
-  // ① 幅を合わせる（これが“変わらない”を解消する本命）
+  // ① 幅を合わせる（display:none中は scrollWidth が 0 になりがちなのでガード）
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
-      const w = Math.ceil(table.scrollWidth);
-      document.documentElement.style.setProperty("--topbarW", `${w}px`);
+      const w  = Math.ceil(table.scrollWidth || 0);
+      const vw = Math.ceil(window.innerWidth || 0);
+
+      // ✅ 0 や 極端に小さい値は無視して 100% にする
+      if (!w || (vw && w < vw)) {
+        document.documentElement.style.setProperty("--topbarW", "100%");
+      } else {
+        document.documentElement.style.setProperty("--topbarW", `${w}px`);
+      }
 
       // ② スクロール同期（必要なら）
-      // 既にイベントを付けてたら二重登録しない
       if (topbar.dataset.synced === "1") return;
       topbar.dataset.synced = "1";
 
       let lock = false;
+
       wrap.addEventListener("scroll", () => {
         if (lock) return;
         lock = true;
