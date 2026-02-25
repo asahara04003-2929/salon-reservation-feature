@@ -119,18 +119,35 @@ async function initLiff() {
   wireEvents();
 
   try {
-    setStatus("LIFF初期化中…");
     setError("");
 
+    // ✅ ローカル開発：LIFFもログインも全部スキップ
+    if (isDevMode_()) {
+      setStatus("開発モード（LIFFスキップ）");
+
+      // ダミーのユーザー情報（必要なら localStorage で変えられる）
+      state.lineUserId = localStorage.getItem("DEV_LINE_USER_ID") || "DEV_USER_001";
+      state.nickName   = localStorage.getItem("DEV_NICKNAME") || "Dev User";
+
+      await loadPlans();
+      await checkUser();
+
+      setStatus("準備完了（開発モード）");
+      return;
+    }
+
+    // ===== 本番（LIFF） =====
+    setStatus("LIFF初期化中…");
     await liff.init({ liffId: LIFF_ID });
 
-    // LINEアプリ内必須（要件に合わせて厳格化）
+    // LINEアプリ内必須
     if (!liff.isInClient()) {
       setStatus("LINEアプリ内で開いてください（LIFF）");
       setError("このページはLINEアプリ内（LIFF）でのみ利用できます。");
       return;
     }
 
+    // 未ログインならログインへ
     if (!liff.isLoggedIn()) {
       liff.login();
       return;
@@ -138,7 +155,7 @@ async function initLiff() {
 
     const profile = await liff.getProfile();
     state.lineUserId = profile.userId;
-    state.nickName = profile.displayName || ""; // ★追加
+    state.nickName   = profile.displayName || "";
 
     setStatus("ユーザー確認中…");
     await loadPlans();
@@ -395,8 +412,8 @@ function renderPlans() {
   $("btnPlanDecide").addEventListener("click", async () => {
     // 週の起点
     state.weekStart = startOfWeek(new Date());
-    gotoStep(2);
     await loadAvailabilityWeek(); // 週表示取得
+    gotoStep(2);
   });
 }
 
@@ -780,13 +797,6 @@ function renderWeekTable(dayResults){
 
   $("timeTableBody").innerHTML = rows;
 
-  // ✅ ここに追加（必ずinnerHTMLの後）
-  syncTopbarToTableWidthAndScroll();
-
-
-  // ✅ ここを追加（DOMに反映し終わった直後）
-  afterRenderSlotsFix();
-
   // クリックイベント（delegation）
   const body = $("timeTableBody");
   body.onclick = (ev) => {
@@ -913,76 +923,8 @@ async function apiPost(payload) {
   }
 }
 
-
-function afterRenderSlotsFix() {
-  const tbody = document.getElementById("timeTableBody");
-  if (!tbody) return;
-
-  // table要素
-  const table = tbody.closest("table");
-  if (!table) return;
-
-  // 横スクロールさせたい“ラッパー”（tableの親を想定）
-  const wrap = table.parentElement;
-  if (!wrap) return;
-
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      // iOS/LIFFでレイアウト確定を促す
-      wrap.scrollLeft = 0;
-      window.dispatchEvent(new Event("resize"));
-    });
-  });
-}
-
-
-function syncTopbarToTableWidthAndScroll(){
-  const topbar = document.querySelector(".topbar");
-  const wrap   = document.querySelector(".timeTableWrap");
-  const table  = document.querySelector(".timeTableWrap .timeTable");
-  if (!topbar || !wrap || !table) return;
-
-  const applyWidth = () => {
-    const w = Math.ceil(table.scrollWidth || 0);
-    const vw = Math.ceil(window.innerWidth || 0);
-    // ✅ テーブル幅 or 画面幅 の大きい方を採用（小さすぎ防止）
-    const use = Math.max(w, vw);
-    document.documentElement.style.setProperty("--topbarW", `${use}px`);
-    // 初期合わせ
-    topbar.scrollLeft = wrap.scrollLeft;
-  };
-
-  // 幅確定を待って適用（iOS/LIFF対策）
-  requestAnimationFrame(() => requestAnimationFrame(applyWidth));
-
-  // 幅が変わる可能性にも追従
-  if (topbar.dataset.ro !== "1") {
-    topbar.dataset.ro = "1";
-    const ro = new ResizeObserver(() => applyWidth());
-    ro.observe(table);
-    ro.observe(wrap);
-  }
-
-  // スクロール同期（重複登録防止）
-  if (topbar.dataset.synced === "1") return;
-  topbar.dataset.synced = "1";
-
-  let lock = false;
-
-  wrap.addEventListener("scroll", () => {
-    if (lock) return;
-    lock = true;
-    topbar.scrollLeft = wrap.scrollLeft;
-    lock = false;
-  }, { passive: true });
-
-  topbar.addEventListener("scroll", () => {
-    if (lock) return;
-    lock = true;
-    wrap.scrollLeft = topbar.scrollLeft;
-    lock = false;
-  }, { passive: true });
-
-  // 初期位置合わせ
-  topbar.scrollLeft = wrap.scrollLeft;
+function isDevMode_() {
+  // 例: http://localhost:5500/?dev=1
+  const p = new URLSearchParams(location.search);
+  return p.get("dev") === "1";
 }

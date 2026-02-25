@@ -22,46 +22,25 @@ body{
 
 a{ color:inherit; }
 
-/* ✅ topbar：見た目は画面幅、スクロール幅だけテーブルに合わせる */
+/* ✅ 画面の“内側幅”を統一する共通ラッパー */
+.shell{
+  width:100%;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
 .topbar{
   position: sticky;
-  top: 0;
-  z-index: 1000;
-
-  width: 100vw;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-
+  top:0;
+  z-index: 10;
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(10px);
   background: rgba(11,18,32,.78);
-
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-
-  /* 子のsticky用 */
-  position: sticky;
 }
-
-/* ✅ これが肝：スクロール幅を作る“ダミー” */
-.topbar::before{
-  content: "";
-  display: block;
-  width: var(--topbarW, 100%);
-  height: 1px;          /* 0だと環境によって効かないので1px */
-}
-
-/* ✅ 中身は画面内に固定（横スクロールしても飛ばない） */
 .topbar__inner{
-  position: sticky;
-  left: 0;
-  top: 0;
-
-  width: 100%;
-  max-width: none;
-  margin: 0;
-  padding: 12px 16px;
+  /* shellが幅と左右paddingを持つので、ここは縦paddingだけ */
+  padding-top: 12px;
+  padding-bottom: 12px;
 
   display:flex;
   align-items:center;
@@ -86,10 +65,16 @@ a{ color:inherit; }
   color: var(--muted);
 }
 
+/* ✅ 子要素がはみ出して親を押し広げないようにする */
+.container, .card, #bookingCard{
+  min-width: 0;
+}
+
 .container{
-  max-width: 980px;
-  margin: 16px auto 60px;
-  padding: 0 16px;
+  /* shellが max-width / margin / padding を持つ */
+  margin-top: 16px;
+  margin-bottom: 60px;
+
   display: grid;
   gap: 14px;
 }
@@ -321,19 +306,22 @@ a{ color:inherit; }
 }
 
 .timeTableWrap{
+  width: 100%;                 /* ✅ 親(card)の幅に必ず合わせる */
+  max-width: 100%;             /* ✅ 980固定をやめる（ここが重要） */
   margin-top: 12px;
-  overflow-x: auto;                 /* 横だけスクロール */
-  overflow-y: hidden;               /* 縦は基本隠す */
+
+  overflow-x: auto;            /* ✅ 横スクロールはここだけ */
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+
   border-radius: 14px;
   border: 1px solid rgba(148,163,184,.18);
   background: rgba(2,6,23,.25);
 }
 
 .timeTable{
-  width: max-content;     /* 列数ぶん横に伸びる */
-  min-width: 100%;        /* ただしコンテナより狭いなら100% */
-  table-layout: fixed;    /* 列幅安定 */
+  width: max-content;
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -359,7 +347,7 @@ a{ color:inherit; }
   position: sticky;
   left: 0;
   background: rgba(11,18,32,.92);
-  z-index: 2; /* 1 → 2 */
+  z-index: 5; /* 1 → 2 */
   font-weight: 700;
 }
 
