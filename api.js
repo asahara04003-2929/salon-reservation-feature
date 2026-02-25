@@ -699,7 +699,7 @@ async function loadAvailabilityWeek() {
     state.granMin = r.granularity_min;
     state.businessOpen = r.business_open;
     state.businessClose = r.business_close;
-    $("slotHint") && ($("slotHint").textContent = "※ 空き枠は端末側で生成（高速）");
+    $("slotHint") && ($("slotHint").textContent = "");
 
     const dayResults = [...Array(7)].map((_, i) => {
       const d = addDays(state.weekStart, i);

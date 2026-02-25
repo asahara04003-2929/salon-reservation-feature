@@ -293,7 +293,9 @@ a{ color:inherit; }
 
 .timeTableWrap{
   margin-top: 12px;
-  overflow: auto;
+  overflow-x: auto;                 /* 横だけスクロール */
+  overflow-y: hidden;               /* 縦は基本隠す */
+  -webkit-overflow-scrolling: touch;
   border-radius: 14px;
   border: 1px solid rgba(148,163,184,.18);
   background: rgba(2,6,23,.25);
@@ -319,7 +321,7 @@ a{ color:inherit; }
   position: sticky;
   top: 0;
   background: rgba(11,18,32,.92);
-  z-index: 2;
+  z-index: 3; /* 2 → 3 */
   font-weight: 700;
 }
 
@@ -327,7 +329,7 @@ a{ color:inherit; }
   position: sticky;
   left: 0;
   background: rgba(11,18,32,.92);
-  z-index: 1;
+  z-index: 2; /* 1 → 2 */
   font-weight: 700;
 }
 
@@ -414,3 +416,20 @@ a{ color:inherit; }
   margin: 0 auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 480px){
+  .timeTable th, .timeTable td{
+    padding: 6px 6px;     /* 8x10 → 6x6 */
+    font-size: 12px;      /* 13 → 12 */
+  }
+
+  .badge{
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+  }
+
+  .timeCell{
+    border-radius: 8px;
+  }
+}
