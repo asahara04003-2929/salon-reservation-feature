@@ -572,7 +572,14 @@ async function cancelReservation(cancelToken) {
 
   try {
     const r = await apiPost({ action: "cancel", cancel_token: cancelToken });
-    if (!r.ok) throw new Error(r.error || "cancel_failed");
+    if (!r.ok) {
+      if (r.error === "SAME_DAY_CANCEL_NOT_ALLOWED") {
+        const phone = r.admin_phone || "";
+        setError(`当日のキャンセルについては、${phone}へご連絡ください。`);
+        return;
+      }
+      throw new Error(r.error || "cancel_failed");
+    }
     setStatus("キャンセルしました");
   } catch (e) {
     console.error(e);
