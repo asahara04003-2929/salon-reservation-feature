@@ -395,60 +395,60 @@ function renderPlans() {
   });
 }
 
-async function loadAvailability() {
-  setError("");
+// async function loadAvailability() {
+//   setError("");
 
-  if (!state.selectedPlan) return;
-  if (!state.selectedDate) return;
+//   if (!state.selectedPlan) return;
+//   if (!state.selectedDate) return;
 
-  setStatus("空き枠を取得中…");
-  $("slotGrid").innerHTML = "";
-  $("slotHint").textContent = "";
+//   setStatus("空き枠を取得中…");
+//   $("slotGrid").innerHTML = "";
+//   $("slotHint").textContent = "";
 
-  try {
-    const r = await apiGet({
-      action: "availability",
-      date: state.selectedDate,
-      plan_id: state.selectedPlan.plan_id,
-    });
-    if (!r.ok) throw new Error(r.error || "availability_failed");
+//   try {
+//     const r = await apiGet({
+//       action: "availability",
+//       date: state.selectedDate,
+//       plan_id: state.selectedPlan.plan_id,
+//     });
+//     if (!r.ok) throw new Error(r.error || "availability_failed");
 
-    state.availableSlots = r.available || [];
-    $("slotHint").textContent = r.slot_source_hint || "※ 枠情報を参照しています";
+//     state.availableSlots = r.available || [];
+//     $("slotHint").textContent = r.slot_source_hint || "※ 枠情報を参照しています";
 
-    renderSlots();
-    setStatus("日時を選択してください");
-  } catch (e) {
-    console.error(e);
-    setStatus("空き枠取得に失敗");
-    setError(String(e?.message || e));
-  }
-}
+//     renderSlots();
+//     setStatus("日時を選択してください");
+//   } catch (e) {
+//     console.error(e);
+//     setStatus("空き枠取得に失敗");
+//     setError(String(e?.message || e));
+//   }
+// }
 
-function renderSlots() {
-  const grid = $("slotGrid");
-  grid.innerHTML = "";
+// function renderSlots() {
+//   const grid = $("slotGrid");
+//   grid.innerHTML = "";
 
-  const slots = state.availableSlots || [];
-  if (!slots.length) {
-    grid.innerHTML = `<div class="alert">この日は予約枠がありません（受付不可、または満席/受付終了の可能性）。</div>`;
-    return;
-  }
+//   const slots = state.availableSlots || [];
+//   if (!slots.length) {
+//     grid.innerHTML = `<div class="alert">この日は予約枠がありません（受付不可、または満席/受付終了の可能性）。</div>`;
+//     return;
+//   }
 
-  slots.forEach(iso => {
-    const btn = document.createElement("div");
-    btn.className = "slot";
-    btn.textContent = fmtTime(iso);
-    btn.addEventListener("click", () => {
-      state.selectedStartAt = iso;
-      [...grid.children].forEach(c => c.classList.remove("slot--selected"));
-      btn.classList.add("slot--selected");
-      buildConfirm();
-      gotoStep(3);
-    });
-    grid.appendChild(btn);
-  });
-}
+//   slots.forEach(iso => {
+//     const btn = document.createElement("div");
+//     btn.className = "slot";
+//     btn.textContent = fmtTime(iso);
+//     btn.addEventListener("click", () => {
+//       state.selectedStartAt = iso;
+//       [...grid.children].forEach(c => c.classList.remove("slot--selected"));
+//       btn.classList.add("slot--selected");
+//       buildConfirm();
+//       gotoStep(3);
+//     });
+//     grid.appendChild(btn);
+//   });
+// }
 
 function buildConfirm() {
   const start = state.selectedStartAt;
@@ -591,14 +591,6 @@ async function cancelReservation(cancelToken) {
 /**
  * XSS safe
  */
-function escapeHtml(s) {
-  return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
 
 function startOfWeek(d){
   // 月曜始まり
@@ -626,10 +618,51 @@ function dowJa(d){
   return ["日","月","火","水","木","金","土"][d.getDay()];
 }
 
+// ★追加：minutes -> "HH:mm"
+function minToHHMM_(min){
+  const hh = String(Math.floor(min / 60)).padStart(2,"0");
+  const mm = String(min % 60).padStart(2,"0");
+  return `${hh}:${mm}`;
+}
+
+// ★追加：interval差集合（[start,end) minutes）
+function subtractIntervals_(windows, busies){
+  const w = (windows || []).slice().sort((a,b)=>a[0]-b[0]);
+  const b = (busies || []).slice().sort((a,b)=>a[0]-b[0]);
+  const out = [];
+
+  for (const [ws,we] of w){
+    let cur = ws;
+    for (const [bs,be] of b){
+      if (be <= cur) continue;
+      if (bs >= we) break;
+      if (bs > cur) out.push([cur, Math.min(bs, we)]);
+      cur = Math.max(cur, be);
+      if (cur >= we) break;
+    }
+    if (cur < we) out.push([cur, we]);
+  }
+  return out;
+}
+
+// ★追加：free intervals -> start minutes list（粒度・所要時間を満たす枠）
+function buildStartMins_(freeIntervals, granMin, requiredMin, minStartMin){
+  const out = [];
+  for (const [fs,fe] of freeIntervals){
+    // 粒度で切り上げ
+    let t = Math.ceil(fs / granMin) * granMin;
+
+    // 今日制限（minStartMinがある日だけ）
+    if (typeof minStartMin === "number") t = Math.max(t, Math.ceil(minStartMin / granMin) * granMin);
+
+    for (; t + requiredMin <= fe; t += granMin) out.push(t);
+  }
+  return out;
+}
+
 async function loadAvailabilityWeek() {
   setError("");
 
-  // ★ 複数選択対応：selectedPlansで判定
   if (!state.selectedPlans || state.selectedPlans.length === 0) {
     setError("プランを選択してください。");
     return;
@@ -649,29 +682,40 @@ async function loadAvailabilityWeek() {
 
   try {
     const r = await apiGet({
-      action: "availability_range",
+      action: "availability_range_materials",   // ★ここが変更点
       from: ymd(state.weekStart),
       days: "7",
-      // plan_ids は送ってもいいが、GASが使わなくてもOK（duration_minが本命）
-      plan_ids: state.selectedPlans.map(p => p.plan_id).join(","),
       duration_min: String(state.totalDurationMin),
     });
 
-    console.log("availability_range response:", r);
-
+    console.log("availability_range_materials response:", r);
     if (!r.ok) throw new Error(r.error || JSON.stringify(r));
 
-    // ★ r.ok 確認後に反映
     state.granMin = r.granularity_min;
     state.businessOpen = r.business_open;
     state.businessClose = r.business_close;
-
-    $("slotHint") && ($("slotHint").textContent = r.slot_source_hint || "");
+    $("slotHint") && ($("slotHint").textContent = "※ 空き枠は端末側で生成（高速）");
 
     const dayResults = [...Array(7)].map((_, i) => {
       const d = addDays(state.weekStart, i);
       const key = ymd(d);
-      return { date: d, slots: (r.by_date && r.by_date[key]) ? r.by_date[key] : [] };
+
+      const windows = (r.windows_by_date && r.windows_by_date[key]) ? r.windows_by_date[key] : [];
+      const busy    = (r.busy_by_date && r.busy_by_date[key]) ? r.busy_by_date[key] : [];
+      const minStartMin = (r.min_start_min_by_date) ? r.min_start_min_by_date[key] : null;
+
+      const free = subtractIntervals_(windows, busy);
+      const starts = buildStartMins_(free, Number(r.granularity_min), Number(r.required_duration_min), minStartMin);
+
+      // renderWeekTable は iso を探す実装になってるので、
+      // いったん "YYYY-MM-DDTHH:mm:00+09:00" 形式の疑似ISO文字列にして渡す
+      // （最小修正で済ませるため）
+      const pseudoIsos = starts.map(min => {
+        const hhmm = minToHHMM_(min);
+        return `${key}T${hhmm}:00+09:00`;
+      });
+
+      return { date: d, slots: pseudoIsos };
     });
 
     renderWeekTable(dayResults);
@@ -826,17 +870,17 @@ function hideLoading(){
 }
 
 // apiGet/apiPostを「ローディング付き」にする（全APIが対象になる）
-async function apiGet(params) {
-  showLoading("読み込み中…");
-  try{
-    const url = new URL(GAS_URL);
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    const res = await fetch(url.toString(), { method: "GET" });
-    return await res.json();
-  } finally {
-    hideLoading();
-  }
-}
+// async function apiGet(params) {
+//   showLoading("読み込み中…");
+//   try{
+//     const url = new URL(GAS_URL);
+//     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+//     const res = await fetch(url.toString(), { method: "GET" });
+//     return await res.json();
+//   } finally {
+//     hideLoading();
+//   }
+// }
 
 async function apiPost(payload) {
   showLoading("処理中…");
