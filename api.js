@@ -780,6 +780,9 @@ function renderWeekTable(dayResults){
 
   $("timeTableBody").innerHTML = rows;
 
+  // ✅ ここを追加（DOMに反映し終わった直後）
+  afterRenderSlotsFix();
+
   // クリックイベント（delegation）
   const body = $("timeTableBody");
   body.onclick = (ev) => {
@@ -904,4 +907,26 @@ async function apiPost(payload) {
   } finally {
     hideLoading();
   }
+}
+
+
+function afterRenderSlotsFix() {
+  const tbody = document.getElementById("timeTableBody");
+  if (!tbody) return;
+
+  // table要素
+  const table = tbody.closest("table");
+  if (!table) return;
+
+  // 横スクロールさせたい“ラッパー”（tableの親を想定）
+  const wrap = table.parentElement;
+  if (!wrap) return;
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      // iOS/LIFFでレイアウト確定を促す
+      wrap.scrollLeft = 0;
+      window.dispatchEvent(new Event("resize"));
+    });
+  });
 }

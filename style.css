@@ -302,8 +302,9 @@ a{ color:inherit; }
 }
 
 .timeTable{
-  width: max-content;
-  min-width: 100%;
+  width: max-content;     /* 列数ぶん横に伸びる */
+  min-width: 100%;        /* ただしコンテナより狭いなら100% */
+  table-layout: fixed;    /* 列幅安定 */
   border-collapse: separate;
   border-spacing: 0;
 }
