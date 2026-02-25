@@ -295,14 +295,15 @@ a{ color:inherit; }
 .timeTableWrap{
   margin-top: 12px;
   width: 100%;
-  max-width: calc(100vw - 32px);
+  max-height: 70vh;
+  position: relative;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   border-radius: 14px;
   border: 1px solid rgba(148,163,184,.18);
   background: rgba(2,6,23,.25);
-  touch-action: pan-x;
+  touch-action: pan-x pan-y;
 }
 
 .timeTable{
@@ -310,6 +311,7 @@ a{ color:inherit; }
   min-width: 760px;       /* PCの見やすさ維持 */
   border-collapse: separate;
   border-spacing: 0;
+  table-layout: fixed; /* 列幅の計算を安定させる */
 }
 
 .timeTable th, .timeTable td{
