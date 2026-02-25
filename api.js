@@ -937,5 +937,52 @@ function afterRenderSlotsFix() {
 
 
 function syncTopbarToTableWidthAndScroll(){
-  return;
+  const topbar = document.querySelector(".topbar");
+  const wrap   = document.querySelector(".timeTableWrap");
+  const table  = document.querySelector(".timeTableWrap .timeTable");
+  if (!topbar || !wrap || !table) return;
+
+  const applyWidth = () => {
+    const w = Math.ceil(table.scrollWidth || 0);
+    const vw = Math.ceil(window.innerWidth || 0);
+    // ✅ テーブル幅 or 画面幅 の大きい方を採用（小さすぎ防止）
+    const use = Math.max(w, vw);
+    document.documentElement.style.setProperty("--topbarW", `${use}px`);
+    // 初期合わせ
+    topbar.scrollLeft = wrap.scrollLeft;
+  };
+
+  // 幅確定を待って適用（iOS/LIFF対策）
+  requestAnimationFrame(() => requestAnimationFrame(applyWidth));
+
+  // 幅が変わる可能性にも追従
+  if (topbar.dataset.ro !== "1") {
+    topbar.dataset.ro = "1";
+    const ro = new ResizeObserver(() => applyWidth());
+    ro.observe(table);
+    ro.observe(wrap);
+  }
+
+  // スクロール同期（重複登録防止）
+  if (topbar.dataset.synced === "1") return;
+  topbar.dataset.synced = "1";
+
+  let lock = false;
+
+  wrap.addEventListener("scroll", () => {
+    if (lock) return;
+    lock = true;
+    topbar.scrollLeft = wrap.scrollLeft;
+    lock = false;
+  }, { passive: true });
+
+  topbar.addEventListener("scroll", () => {
+    if (lock) return;
+    lock = true;
+    wrap.scrollLeft = topbar.scrollLeft;
+    lock = false;
+  }, { passive: true });
+
+  // 初期位置合わせ
+  topbar.scrollLeft = wrap.scrollLeft;
 }

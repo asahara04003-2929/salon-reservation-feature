@@ -22,14 +22,14 @@ body{
 
 a{ color:inherit; }
 
-/* ✅ 画面幅いっぱいに強制（親の幅制限を無視する） */
+/* ✅ topbar：見た目は画面幅、スクロール幅だけテーブルに合わせる */
 .topbar{
   position: sticky;
   top: 0;
   z-index: 1000;
 
-  width: 100vw;                       /* 画面幅 */
-  margin-left: calc(50% - 50vw);      /* 親の中央基準から画面端へ広げる */
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
   margin-right: calc(50% - 50vw);
 
   border-bottom: 1px solid var(--line);
@@ -39,10 +39,25 @@ a{ color:inherit; }
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
+
+  /* 子のsticky用 */
+  position: sticky;
 }
 
-/* 中身は“普通に”100%でOK（ここで幅をいじらない） */
+/* ✅ これが肝：スクロール幅を作る“ダミー” */
+.topbar::before{
+  content: "";
+  display: block;
+  width: var(--topbarW, 100%);
+  height: 1px;          /* 0だと環境によって効かないので1px */
+}
+
+/* ✅ 中身は画面内に固定（横スクロールしても飛ばない） */
 .topbar__inner{
+  position: sticky;
+  left: 0;
+  top: 0;
+
   width: 100%;
   max-width: none;
   margin: 0;
