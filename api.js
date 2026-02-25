@@ -285,6 +285,7 @@ async function registerUser() {
     nick_name: state.nickName || "",  // ★追加
     name: String(fd.get("name") || "").trim(),
     kana: String(fd.get("kana") || "").trim(),
+    birthday: String(fd.get("birthday") || "").trim(), // ★追加（YYYY-MM-DD）
     gender: String(fd.get("gender") || "").trim(),
     phone: String(fd.get("phone") || "").replace(/[^0-9]/g, "").trim(),
     email: String(fd.get("email") || "").trim(),
