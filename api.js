@@ -189,10 +189,8 @@ function wireEvents() {
     state.selectedStartAt = null;
 
     // テーブルを初期化
-    $("fzCorner") && ($("fzCorner").innerHTML = "");
-    $("fzHead") && ($("fzHead").innerHTML = "");
-    $("fzTime") && ($("fzTime").innerHTML = "");
-    $("fzBodyGrid") && ($("fzBodyGrid").innerHTML = "");
+    $("timeTableHead") && ($("timeTableHead").innerHTML = "");
+    $("timeTableBody") && ($("timeTableBody").innerHTML = "");
 
     $("selectedPlanBox") && ($("selectedPlanBox").textContent = "—");
 
@@ -682,15 +680,8 @@ async function loadAvailabilityWeek() {
   setStatus("空き枠（週）を取得中…");
 
   $("slotHint") && ($("slotHint").textContent = "");
-  // 週取得前にテーブルをクリア（Excel固定版）
-  $("fzCorner") && ($("fzCorner").innerHTML = "");
-  $("fzHead") && ($("fzHead").innerHTML = "");
-  $("fzTime") && ($("fzTime").innerHTML = "");
-  $("fzBodyGrid") && ($("fzBodyGrid").innerHTML = "");
-
-  // スクロール位置も戻す（任意だけどおすすめ）
-  $("fzBody") && ($("fzBody").scrollLeft = 0);
-  $("fzBody") && ($("fzBody").scrollTop  = 0);
+  $("timeTableHead") && ($("timeTableHead").innerHTML = "");
+  $("timeTableBody") && ($("timeTableBody").innerHTML = "");
 
   if (!state.weekStart) state.weekStart = startOfWeek(new Date());
 
@@ -751,40 +742,20 @@ async function loadAvailabilityWeek() {
 }
 
 function renderWeekTable(dayResults){
+  console.log("renderWeekTable dayResults:", dayResults);
   // dayResults: [{date, slots:[iso...]}, ...7]
 
-  // ===== 1) 縦軸（時間）を生成 =====
+  // 表の縦軸（時間）を営業時間と粒度で固定生成（×も表示するため）
   const BUSINESS_OPEN = state.businessOpen || "09:00";
   const BUSINESS_CLOSE = state.businessClose || "18:00";
   const GRAN_MIN = Number(state.granMin) || 30;
 
   const times = buildTimes_(BUSINESS_OPEN, BUSINESS_CLOSE, GRAN_MIN);
 
-  // ===== 2) 4分割DOMを取得 =====
-  const corner = $("fzCorner");
-  const head   = $("fzHead");
-  const time   = $("fzTime");
-  const body   = $("fzBodyGrid");
-
-  if (!corner || !head || !time || !body) {
-    console.warn("freeze DOM not found. Check HTML ids (fzCorner/fzHead/fzTime/fzBodyGrid).");
-    // フォールバックで旧テーブルを使うならここに旧処理を書く
-    return;
-  }
-
-  // クリア
-  corner.innerHTML = "";
-  head.innerHTML = "";
-  time.innerHTML = "";
-  body.innerHTML = "";
-
-  // ===== 3) 上ヘッダ（日付行）を作る =====
-  // 左上角（"時間"）
-  corner.innerHTML = `<tr><th>時間</th></tr>`;
-
-  // 日付ヘッダ（7列）
-  head.innerHTML = `
+  // ヘッダー
+  $("timeTableHead").innerHTML = `
     <tr>
+      <th>時間</th>
       ${dayResults.map((dr)=>{
         const d = dr.date;
         const label = `${d.getMonth()+1}/${d.getDate()} (${dowJa(d)})`;
@@ -793,13 +764,10 @@ function renderWeekTable(dayResults){
     </tr>
   `;
 
-  // ===== 4) 左列（時間）を作る =====
-  time.innerHTML = times.map(t => `<tr><td>${t}</td></tr>`).join("");
-
-  // ===== 5) 右下（○×グリッド）を作る =====
-  body.innerHTML = times.map(timeStr => {
+  // body
+  const rows = times.map(time => {
     const tds = dayResults.map((dr)=>{
-      const iso = findIsoByDateAndTime_(dr.slots, dr.date, timeStr);
+      const iso = findIsoByDateAndTime_(dr.slots, dr.date, time);
       const ok = !!iso;
       const cls = ok ? "timeCell timeCell--ok" : "timeCell timeCell--ng";
       const badge = ok ? `<span class="badge badge--ok">○</span>` : `<span class="badge badge--ng">×</span>`;
@@ -807,17 +775,19 @@ function renderWeekTable(dayResults){
       return `<td><div class="${cls}" ${dataAttr}>${badge}</div></td>`;
     }).join("");
 
-    return `<tr>${tds}</tr>`;
+    return `<tr><td>${time}</td>${tds}</tr>`;
   }).join("");
 
-  // ===== 6) クリックイベント（右下だけでOK） =====
+  $("timeTableBody").innerHTML = rows;
+
+  // クリックイベント（delegation）
+  const body = $("timeTableBody");
   body.onclick = (ev) => {
     const cell = ev.target.closest(".timeCell--ok");
     if (!cell) return;
     const iso = cell.getAttribute("data-iso");
     if (!iso) return;
 
-    // 選択解除（右下だけ）
     document.querySelectorAll(".timeCell--selected")
       .forEach(x=>x.classList.remove("timeCell--selected"));
     cell.classList.add("timeCell--selected");
@@ -826,32 +796,7 @@ function renderWeekTable(dayResults){
     buildConfirm();
     gotoStep(3);
   };
-
-  // ===== 7) スクロール同期（Excel固定の肝） =====
-  setupFreezeScrollSync_();
 }
-
-let _freezeSyncBound = false;
-
-function setupFreezeScrollSync_(){
-  if (_freezeSyncBound) return;
-
-  const body = $("fzBody"); // 右下スクロール枠(div)
-  const top  = $("fzTop");  // 上ヘッダ(div)
-  const left = $("fzLeft"); // 左時間(div)
-  if (!body || !top || !left) {
-    console.warn("freeze sync elements not found", { body, top, left });
-    return;
-  }
-
-  body.addEventListener("scroll", () => {
-    top.scrollLeft = body.scrollLeft;   // 横同期
-    left.scrollTop = body.scrollTop;    // 縦同期
-  }, { passive: true });
-
-  _freezeSyncBound = true;
-}
-
 
 function findIsoByDateAndTime_(isos, dateObj, timeStr){
   // isos: ["2026-02-22T10:00:00+09:00", ...]
