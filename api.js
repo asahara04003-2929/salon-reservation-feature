@@ -937,48 +937,5 @@ function afterRenderSlotsFix() {
 
 
 function syncTopbarToTableWidthAndScroll(){
-  const topbar = document.querySelector(".topbar");
-  const wrap   = document.querySelector(".timeTableWrap");
-  const table  = document.querySelector(".timeTableWrap .timeTable");
-  if (!topbar || !wrap || !table) return;
-
-  const applyWidth = () => {
-    // scrollWidth が 0 になる瞬間があるので、0なら何もしない
-    const w = Math.ceil(table.scrollWidth || 0);
-    if (!w) return;
-    document.documentElement.style.setProperty("--topbarW", `${w}px`);
-    // 初期位置合わせ
-    topbar.scrollLeft = wrap.scrollLeft;
-  };
-
-  // ✅ まず1回適用（描画直後）
-  requestAnimationFrame(() => requestAnimationFrame(applyWidth));
-
-  // ✅ テーブル幅が確定したタイミングで再適用（iOS/LIFFで効く）
-  if (topbar.dataset.ro !== "1") {
-    topbar.dataset.ro = "1";
-    const ro = new ResizeObserver(() => applyWidth());
-    ro.observe(table);
-    // 念のため wrap も監視
-    ro.observe(wrap);
-  }
-
-  // ✅ スクロール同期（重複登録防止）
-  if (topbar.dataset.synced === "1") return;
-  topbar.dataset.synced = "1";
-
-  let lock = false;
-  wrap.addEventListener("scroll", () => {
-    if (lock) return;
-    lock = true;
-    topbar.scrollLeft = wrap.scrollLeft;
-    lock = false;
-  }, { passive: true });
-
-  topbar.addEventListener("scroll", () => {
-    if (lock) return;
-    lock = true;
-    wrap.scrollLeft = topbar.scrollLeft;
-    lock = false;
-  }, { passive: true });
+  return;
 }
