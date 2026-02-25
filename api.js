@@ -682,8 +682,15 @@ async function loadAvailabilityWeek() {
   setStatus("空き枠（週）を取得中…");
 
   $("slotHint") && ($("slotHint").textContent = "");
-  $("timeTableHead") && ($("timeTableHead").innerHTML = "");
-  $("timeTableBody") && ($("timeTableBody").innerHTML = "");
+  // 週取得前にテーブルをクリア（Excel固定版）
+  $("fzCorner") && ($("fzCorner").innerHTML = "");
+  $("fzHead") && ($("fzHead").innerHTML = "");
+  $("fzTime") && ($("fzTime").innerHTML = "");
+  $("fzBodyGrid") && ($("fzBodyGrid").innerHTML = "");
+
+  // スクロール位置も戻す（任意だけどおすすめ）
+  $("fzBody") && ($("fzBody").scrollLeft = 0);
+  $("fzBody") && ($("fzBody").scrollTop  = 0);
 
   if (!state.weekStart) state.weekStart = startOfWeek(new Date());
 
@@ -823,6 +830,28 @@ function renderWeekTable(dayResults){
   // ===== 7) スクロール同期（Excel固定の肝） =====
   setupFreezeScrollSync_();
 }
+
+let _freezeSyncBound = false;
+
+function setupFreezeScrollSync_(){
+  if (_freezeSyncBound) return;
+
+  const body = $("fzBody"); // 右下スクロール枠(div)
+  const top  = $("fzTop");  // 上ヘッダ(div)
+  const left = $("fzLeft"); // 左時間(div)
+  if (!body || !top || !left) {
+    console.warn("freeze sync elements not found", { body, top, left });
+    return;
+  }
+
+  body.addEventListener("scroll", () => {
+    top.scrollLeft = body.scrollLeft;   // 横同期
+    left.scrollTop = body.scrollTop;    // 縦同期
+  }, { passive: true });
+
+  _freezeSyncBound = true;
+}
+
 
 function findIsoByDateAndTime_(isos, dateObj, timeStr){
   // isos: ["2026-02-22T10:00:00+09:00", ...]
