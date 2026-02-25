@@ -454,3 +454,54 @@ a{ color:inherit; }
     border-radius: 8px;
   }
 }
+
+.freezeWrap{
+  margin-top: 12px;
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 14px;
+  background: rgba(2,6,23,.25);
+  overflow: hidden; /* 枠で切る */
+
+  /* 4領域グリッド */
+  display: grid;
+  grid-template-columns: 92px 1fr; /* 左列幅（時間列） */
+  grid-template-rows: 44px 1fr;    /* 上行高さ（ヘッダ） */
+}
+
+/* 角/上/左はスクロールしない */
+.fz--corner{ grid-area: 1 / 1; }
+.fz--top   { grid-area: 1 / 2; overflow: hidden; }
+.fz--left  { grid-area: 2 / 1; overflow: hidden; }
+
+/* 本体だけスクロール */
+.fz--body{
+  grid-area: 2 / 2;
+  overflow: auto;                  /* ← Excelと同じ：ここだけ */
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+
+  max-height: 70vh;                /* 表の高さ（好みで調整） */
+}
+
+/* テーブル共通 */
+.fzTable{
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.fzTable th, .fzTable td{
+  border-right: 1px solid rgba(148,163,184,.12);
+  border-bottom: 1px solid rgba(148,163,184,.12);
+  padding: 8px 10px;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.fz--corner, .fz--top, .fz--left{
+  background: rgba(11,18,32,.92);
+}
+
+@media (max-width: 480px){
+  .freezeWrap{ grid-template-columns: 84px 1fr; }
+  .fzTable th, .fzTable td{ padding: 6px 6px; font-size: 12px; }
+}
