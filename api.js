@@ -604,7 +604,7 @@ async function cancelReservation(cancelToken) {
 
         setStatus("当日のキャンセルは承っておりません。");
         setError(msg);         // ページ内にも残す（任意）
-        await popupError(msgHtml, "当日キャンセル不可"); // ★モーダル
+        await popupSameDayCancel(phone, msgHtml, "当日キャンセル不可"); // ★モーダル
         return { refreshed: false };
       }
       throw new Error(r.error || "cancel_failed");
@@ -942,6 +942,30 @@ function popupError(msgHtml, title = "エラー") {
   });
 }
 
+
+function normalizeTel_(phone){
+  // 数字と+だけ残す（ハイフン等除去）
+  return String(phone || "").replace(/[^\d+]/g, "");
+}
+
+async function popupSameDayCancel(phone, msgHtml, title = "エラー"){
+  const tel = normalizeTel_(phone);
+  const r = await Swal.fire({
+    icon: "error",
+    title,
+    html: msgHtml,
+    showCancelButton: true,
+    confirmButtonText: "電話する",
+    cancelButtonText: "閉じる",
+  });
+
+  if (r.isConfirmed && tel) {
+    // ✅ ユーザー操作（ボタン押下）なので発信がブロックされにくい
+    window.location.href = `tel:${tel}`;
+  }
+}
+
+// HTMLコードのエスケープ
 function escHtml(s){
   return String(s ?? "")
     .replaceAll("&","&amp;")
