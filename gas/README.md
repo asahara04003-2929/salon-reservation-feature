@@ -7,7 +7,7 @@ cd gas
 clasp push
 
 # 新しいデプロイを作る（=新しいversionを発行してデプロイ）
-clasp deploy -m "update"
+clasp deploy -d "update"
 
 # よくあるハマりポイント（先回り）
 - A) clasp clone で別フォルダが増える/思った場所に来ない
