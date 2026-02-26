@@ -355,11 +355,16 @@ function listPlans_() {
     const isActive = String(row[idx.is_active] ?? '').toUpperCase() === 'TRUE';
     if (!isActive) continue;
 
-    // ★ descriptions（description でも拾えるように）
+    // descriptions（description でも拾う）
     const descIdx = (idx.descriptions !== undefined) ? idx.descriptions
                   : (idx.description !== undefined) ? idx.description
                   : undefined;
     const desc = (descIdx !== undefined) ? String(row[descIdx] ?? '') : '';
+
+    // ★ order（未入力は最後尾）
+    const ordRaw = (idx.order !== undefined) ? row[idx.order] : null;
+    const ordNum = Number(ordRaw);
+    const ord = Number.isFinite(ordNum) ? ordNum : 999999;
 
     out.push({
       plan_id: String(row[idx.plan_id]),
@@ -367,8 +372,13 @@ function listPlans_() {
       duration_min: Number(row[idx.duration_min]),
       price: Number(row[idx.price]),
       descriptions: desc,
+      order: ord, // ★返却にも含める（フロントで使いたければ）
     });
   }
+
+  // ★ order 昇順 → plan_id 昇順（同順時の安定化）
+  out.sort((a, b) => (a.order - b.order) || a.plan_id.localeCompare(b.plan_id));
+
   return out;
 }
 
@@ -382,8 +392,11 @@ function getPlanById_(planId) {
     const row = values[r];
     if (String(row[idx.plan_id]) === String(planId)) {
       const isActive = String(row[idx.is_active] ?? '').toUpperCase() === 'TRUE';
-
       const desc = (idx.descriptions !== undefined) ? String(row[idx.descriptions] ?? '') : '';
+
+      const ordRaw = (idx.order !== undefined) ? row[idx.order] : null;
+      const ordNum = Number(ordRaw);
+      const ord = Number.isFinite(ordNum) ? ordNum : 999999;
 
       return {
         plan_id: String(row[idx.plan_id]),
@@ -391,8 +404,8 @@ function getPlanById_(planId) {
         duration_min: Number(row[idx.duration_min]),
         price: Number(row[idx.price]),
         is_active: isActive,
-        // ★追加
         descriptions: desc,
+        order: ord, // ★追加
       };
     }
   }
@@ -610,16 +623,33 @@ function createReservation_(body) {
   const user = getUserByLineId_(lineUserId);
   if (!user) throw new Error('USER_NOT_REGISTERED');
 
-  // ★プランをまとめて読み込んで合算
-  const plans = planIds.map(pid => {
+  // ★プランをまとめて読み込んで合算（orderで並べ替え）
+  let plans = planIds.map(pid => {
     const p = getPlanById_(pid);
     if (!p || !p.is_active) throw new Error('PLAN_NOT_FOUND_OR_INACTIVE');
     return p;
   });
 
+  console.log("[reserve] input planIds:", JSON.stringify(planIds));
+  console.log("[reserve] loaded plans:", JSON.stringify(plans.map(p => ({
+    plan_id: p.plan_id, order: p.order, name: p.plan_name
+  }))));
+
+  // ★ order 昇順 → plan_id 昇順（同順時安定化）
+  plans.sort((a, b) => (Number(a.order || 999999) - Number(b.order || 999999)) || String(a.plan_id).localeCompare(String(b.plan_id)));
+
+  console.log("[reserve] sorted plans:", JSON.stringify(plans.map(p => ({
+    plan_id: p.plan_id, order: p.order, name: p.plan_name
+  }))));
+
+  // ★ 並べ替え後の planIds も作り直す（snapshot用）
+  planIds = plans.map(p => String(p.plan_id));
+
   const totalDuration = plans.reduce((a, p) => a + Number(p.duration_min), 0);
   const totalPrice = plans.reduce((a, p) => a + Number(p.price), 0);
   const priceStr = Number(totalPrice).toLocaleString("ja-JP");
+
+  // ★ order昇順の名前で連結
   const planNames = plans.map(p => p.plan_name).join(' + ');
 
   const endAt = new Date(startAt.getTime() + totalDuration * 60 * 1000);
