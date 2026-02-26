@@ -931,7 +931,7 @@ async function popupConfirm(msg, title="確認") {
 function popupError(msgHtml, title = "エラー") {
   // SweetAlert2 読み込み前に呼ばれた場合の保険
   if (!window.Swal) {
-    alert(`${title}\n\n${msg}`);
+    alert(`${title}\n\n${msgHtml}`);
     return;
   }
   return Swal.fire({
