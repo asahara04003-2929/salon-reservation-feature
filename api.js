@@ -1,16 +1,15 @@
 /**
  * ============================
- * 設定（ここだけ埋める）
+ * GAS_URL, LINE公式アカウント（LIFF）
  * ============================
  */
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxpVHAXUQoPB1tgXqXT_Syy0gk2GLFCPZ35dUjUZ_XVi6aap5kud587Vecan4xFavG_8Q/exec";
+const env = window.__ENV__;
+if (!env?.GAS_URL || !env?.LIFF_ID) {
+  alert("config.js が読み込まれていません（GAS_URL / LIFF_ID 未設定）");
+  throw new Error("Missing __ENV__");
+}
 
-/**
- * ============================
- * LINE公式アカウント（LIFF）
- * ============================
- */
-const LIFF_ID = "2009221487-PnLfRf5u";
+const { GAS_URL, LIFF_ID } = env;
 
 /**
  * API：GET/POST
