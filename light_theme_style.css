@@ -1,0 +1,482 @@
+:root{
+  --bg: #fff7fb;
+  --card: #ffffff;
+  --text: #2b2b2b;
+  --muted: #7a6f78;
+  --line: rgba(236,72,153,.18);   /* ピンク線 */
+  --primary: #ec4899;             /* ピンク */
+  --danger: #ef4444;
+  --warn: #f59e0b;
+  --shadow: 0 10px 24px rgba(31,41,55,.10);
+  --radius: 16px;
+
+  /* 追加：アクセントを使い回すため */
+  --primaryLine: rgba(236,72,153,.45);
+  --primaryBg: rgba(236,72,153,.10);
+  --primaryBgStrong: rgba(236,72,153,.15);
+  --ring: rgba(236,72,153,.20);
+}
+
+*{ box-sizing: border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif;
+  background: radial-gradient(1200px 700px at 20% 0%, #ffffff 0%, var(--bg) 55%);
+  color: var(--text);
+}
+
+a{ color:inherit; }
+
+/* ✅ 画面の“内側幅”を統一する共通ラッパー */
+.shell{
+  width:100%;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.topbar{
+  position: sticky;
+  top:0;
+  z-index: 10;
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(10px);
+  background: rgba(255,255,255,.78);
+}
+.topbar__inner{
+  /* shellが幅と左右paddingを持つので、ここは縦paddingだけ */
+  padding-top: 12px;
+  padding-bottom: 12px;
+
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.brand{
+  display:flex;
+  align-items:baseline;
+  gap: 12px;
+}
+.brand__mark{
+  font-weight: 800;
+  letter-spacing: .06em;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255,255,255,.03);
+}
+.brand__sub{
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ✅ 子要素がはみ出して親を押し広げないようにする */
+.container, .card, #bookingCard{
+  min-width: 0;
+}
+
+.container{
+  /* shellが max-width / margin / padding を持つ */
+  margin-top: 16px;
+  margin-bottom: 60px;
+
+  display: grid;
+  gap: 14px;
+}
+
+.card{
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.90);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+.card__head{
+  margin-bottom: 12px;
+}
+.card__head h2{
+  margin:0;
+  font-size: 18px;
+}
+.card__head p{
+  margin:6px 0 0;
+}
+
+.panel{
+  border-top: 1px dashed var(--line);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.panel__head h3{
+  margin:0;
+  font-size: 15px;
+}
+
+.row{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+}
+.row--space{ justify-content: space-between; }
+.row--end{ justify-content: flex-end; }
+
+.grid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+.grid--2{
+  grid-template-columns: 1fr;
+}
+@media (min-width: 720px){
+  .grid{ grid-template-columns: 1fr 1fr; }
+  .grid--2{ grid-template-columns: 1fr 1fr; }
+}
+
+.field{
+  display:flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field__label{
+  font-size: 12px;
+  color: var(--muted);
+}
+.field__help{
+  font-size: 12px;
+  color: rgba(148,163,184,.85);
+}
+.req{
+  font-size: 11px;
+  color: rgba(236,72,153,.95);
+  border: 1px solid rgba(236,72,153,.35);
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+}
+
+.input, .select{
+  width:100%;
+  padding: 12px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.22);
+  background: rgba(2,6,23,.55);
+  color: var(--text);
+  outline: none;
+}
+.input:focus, .select:focus{
+  border-color: var(--primaryLine);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.btn{
+  border: 1px solid rgba(148,163,184,.22);
+  background: rgba(255,255,255,.04);
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.btn:active{ transform: translateY(1px); }
+.btn--primary{
+  border-color: var(--primaryLine);
+  background: var(--primaryBgStrong);
+}
+.btn--danger{
+  border-color: rgba(239,68,68,.45);
+  background: rgba(239,68,68,.12);
+}
+.btn--ghost{
+  background: transparent;
+}
+
+.list{
+  display:grid;
+  gap: 10px;
+}
+
+.item{
+  border: 1px solid rgba(148,163,184,.18);
+  border-radius: 14px;
+  padding: 12px;
+  background: var(--primaryBgStrong);
+}
+.item__title{
+  font-weight: 700;
+  margin:0 0 6px;
+}
+.item__meta{
+  color: var(--muted);
+  font-size: 13px;
+}
+.item__actions{
+  margin-top: 10px;
+  display:flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.muted{ color: var(--muted); }
+.small{ font-size: 12px; }
+
+.alert{
+  margin-top: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148,163,184,.22);
+  background: var(--primaryBgStrong);
+}
+.alert--error{
+  border-color: rgba(239,68,68,.35);
+  background: rgba(239,68,68,.10);
+  color: #fecaca;
+}
+
+.status{
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.hidden{ display:none !important; }
+
+.stepper{
+  margin-top: 10px;
+  display:grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.stepper__item{
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(2,6,23,.25);
+  text-align:center;
+  color: rgba(148,163,184,.9);
+}
+.stepper__item--active{
+  border-color: var(--primaryLine);
+  color: rgba(236,72,153,.95);
+  background: var(--primaryBg);
+}
+
+.summary{
+  padding: 12px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(2,6,23,.25);
+  border-radius: 12px;
+}
+
+.slotGrid{
+  margin-top: 12px;
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (min-width: 720px){
+  .slotGrid{ grid-template-columns: repeat(6, 1fr); }
+}
+.slot{
+  padding: 10px 0;
+  border-radius: 12px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(2,6,23,.25);
+  text-align:center;
+  cursor:pointer;
+}
+.slot--disabled{
+  opacity: .45;
+  cursor: not-allowed;
+}
+.slot--selected{
+  border-color: var(--primaryLine);
+  background: var(--primaryBg);;
+}
+
+.confirmBox, .doneBox{
+  border: 1px solid rgba(148,163,184,.18);
+  background: rgba(2,6,23,.25);
+  border-radius: 14px;
+  padding: 12px;
+  display:grid;
+  gap: 8px;
+}
+
+.footer{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 0 16px 24px;
+}
+
+.timeTableWrap,
+.item,
+.summary,
+.confirmBox, .doneBox{
+  background: rgba(255,255,255,.85);
+}
+
+.timeTableWrap{
+  width: 100%;                 /* ✅ 親(card)の幅に必ず合わせる */
+  max-width: 100%;             /* ✅ 980固定をやめる（ここが重要） */
+  margin-top: 12px;
+
+  overflow-x: auto;            /* ✅ 横スクロールはここだけ */
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+
+  border-radius: 14px;
+  border: 1px solid rgba(148,163,184,.18);
+  background: var(--card);
+}
+
+.timeTable{
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.timeTable th, .timeTable td{
+  border-right: 1px solid rgba(148,163,184,.12);
+  border-bottom: 1px solid rgba(148,163,184,.12);
+  padding: 8px 10px;
+  text-align: center;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.timeTable thead th{
+  position: sticky;
+  top: 0;
+  background: rgba(255,255,255,.92);
+  z-index: 3; /* 2 → 3 */
+  font-weight: 700;
+}
+
+.timeTable th:first-child, .timeTable td:first-child{
+  position: sticky;
+  left: 0;
+  background: rgba(255,255,255,.92);
+  z-index: 5; /* 1 → 2 */
+  font-weight: 700;
+}
+
+.timeCell{
+  cursor: pointer;
+  border-radius: 10px;
+  /* border: 1px solid rgba(148,163,184,.18); */
+  /* background: rgba(255,255,255,.02); */
+}
+
+/* .timeCell--ok{
+  border-color: var(--primaryLine);
+  background: var(--primaryBg);
+} */
+
+.timeCell--ng{
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.timeCell--selected{
+  outline: 2px solid rgba(236,72,153,.80);
+  outline-offset: -2px;
+}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  /* border: 1px solid rgba(148,163,184,.18); */
+  font-weight: 800;
+}
+
+.badge--ok{
+  color: rgba(236,72,153,.95);
+  border-color: var(--primaryLine);
+}
+.badge--ng{ color: rgba(148,163,184,.85); }
+
+/* ✅ CSS（100文字まで崩れない見た目）
+   ・長文でも折り返す
+   ・行が長くても親をはみ出さない
+*/
+.planInfo { min-width: 0; }  /* 横並びで説明が潰れない */
+
+.planDesc{
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.loadingOverlay{
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,.45);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  backdrop-filter: blur(2px);
+}
+.loadingBox{
+  display:grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(148,163,184,.22);
+  background: var(--primaryBg);
+  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+  text-align:center;
+  min-width: 220px;
+}
+.loadingText{ font-size: 13px; color: rgba(229,231,235,.95); }
+.spinner{
+  width: 34px; height: 34px;
+  border-radius: 999px;
+  border: 3px solid rgba(148,163,184,.25);
+  border-top-color: rgba(236,72,153,.90);
+  animation: spin 0.9s linear infinite;
+  margin: 0 auto;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 480px){
+  #panelDateTime .row{
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #panelDateTime .row .btn{
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .timeTable{
+    min-width: 620px;   /* ← ここを調整(560〜680くらいで好み) */
+  }
+
+  .timeTable th, .timeTable td{
+    padding: 6px 6px;     /* 8x10 → 6x6 */
+    font-size: 12px;      /* 13 → 12 */
+  }
+
+  .badge{
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+  }
+
+  .timeCell{
+    border-radius: 8px;
+  }
+}
