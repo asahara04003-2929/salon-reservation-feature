@@ -232,7 +232,7 @@ a{ color:inherit; }
 .alert--error{
   border-color: rgba(239,68,68,.35);
   background: rgba(239,68,68,.10);
-  color: #fecaca;
+  color: var(--text);
 }
 
 .status{

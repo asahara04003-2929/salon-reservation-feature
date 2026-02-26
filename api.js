@@ -579,8 +579,9 @@ function renderReservations(list) {
     el.querySelector("button").addEventListener("click", async () => {
       const ok = confirm("この予約をキャンセルしますか？");
       if (!ok) return;
-      await cancelReservation(resv.cancel_token);
-      await openMyPage();
+
+      const result = await cancelReservation(resv.cancel_token);
+      if (result.refreshed) await openMyPage(); // ←成功時だけ更新
     });
 
     root.appendChild(el);
@@ -593,19 +594,26 @@ async function cancelReservation(cancelToken) {
 
   try {
     const r = await apiPost({ action: "cancel", cancel_token: cancelToken });
-    if (!r.ok) {
+    const ok = (r.ok === true) || (String(r.ok).toLowerCase() === "true");
+
+    if (!ok) {
       if (r.error === "SAME_DAY_CANCEL_NOT_ALLOWED") {
         const phone = r.admin_phone || "";
-        setError(`当日のキャンセルについては、${phone}へご連絡ください。`);
-        return;
+        setStatus("当日の予約キャンセルは承っておりません");
+        alert(`当日のキャンセルについては、${phone}へご連絡ください。`)
+        // setError(`当日のキャンセルについては、${phone}へご連絡ください。`);
+        return { handled: true, refreshed: false }; // ←ここ
       }
       throw new Error(r.error || "cancel_failed");
     }
+
     setStatus("キャンセルしました");
+    return { handled: true, refreshed: true };
   } catch (e) {
     console.error(e);
     setStatus("キャンセルに失敗");
     setError(String(e?.message || e));
+    return { handled: false, refreshed: false };
   }
 }
 
@@ -894,33 +902,7 @@ function hideLoading(){
   if (ov) ov.classList.add("hidden");
 }
 
-// apiGet/apiPostを「ローディング付き」にする（全APIが対象になる）
-async function apiGet(params) {
-  showLoading("読み込み中…");
-  try{
-    const url = new URL(GAS_URL);
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    const res = await fetch(url.toString(), { method: "GET" });
-    return await res.json();
-  } finally {
-    hideLoading();
-  }
-}
 
-async function apiPost(payload) {
-  showLoading("処理中…");
-  try{
-    const res = await fetch(GAS_URL, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    const text = await res.text();
-    try { return JSON.parse(text); }
-    catch { return { ok:false, error:"INVALID_JSON_RESPONSE", raw:text }; }
-  } finally {
-    hideLoading();
-  }
-}
 
 function isDevMode_() {
   // 例: http://localhost:5500/?dev=1
