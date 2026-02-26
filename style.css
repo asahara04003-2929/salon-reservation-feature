@@ -1,14 +1,20 @@
 :root{
-  --bg: #0b1220;
-  --card: #0f172a;
-  --text: #e5e7eb;
-  --muted: #94a3b8;
-  --line: rgba(148,163,184,.18);
-  --primary: #22c55e;
+  --bg: #fff7fb;
+  --card: #ffffff;
+  --text: #2b2b2b;
+  --muted: #7a6f78;
+  --line: rgba(236,72,153,.18);   /* ピンク線 */
+  --primary: #ec4899;             /* ピンク */
   --danger: #ef4444;
   --warn: #f59e0b;
-  --shadow: 0 12px 28px rgba(0,0,0,.35);
+  --shadow: 0 10px 24px rgba(31,41,55,.10);
   --radius: 16px;
+
+  /* 追加：アクセントを使い回すため */
+  --primaryLine: rgba(236,72,153,.45);
+  --primaryBg: rgba(236,72,153,.10);
+  --primaryBgStrong: rgba(236,72,153,.15);
+  --ring: rgba(236,72,153,.20);
 }
 
 *{ box-sizing: border-box; }
@@ -16,7 +22,7 @@ html,body{ height:100%; }
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif;
-  background: radial-gradient(1200px 700px at 20% 0%, #111827 0%, var(--bg) 55%);
+  background: radial-gradient(1200px 700px at 20% 0%, #ffffff 0%, var(--bg) 55%);
   color: var(--text);
 }
 
@@ -35,7 +41,7 @@ a{ color:inherit; }
   z-index: 10;
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(10px);
-  background: rgba(11,18,32,.78);
+  background: rgba(255,255,255,.78);
 }
 .topbar__inner{
   /* shellが幅と左右paddingを持つので、ここは縦paddingだけ */
@@ -81,7 +87,7 @@ a{ color:inherit; }
 
 .card{
   border: 1px solid var(--line);
-  background: rgba(15,23,42,.72);
+  background: rgba(255,255,255,.90);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 14px;
@@ -143,8 +149,8 @@ a{ color:inherit; }
 }
 .req{
   font-size: 11px;
-  color: rgba(34,197,94,.9);
-  border: 1px solid rgba(34,197,94,.35);
+  color: rgba(236,72,153,.95);
+  border: 1px solid rgba(236,72,153,.35);
   padding: 1px 6px;
   border-radius: 999px;
   margin-left: 6px;
@@ -160,8 +166,8 @@ a{ color:inherit; }
   outline: none;
 }
 .input:focus, .select:focus{
-  border-color: rgba(34,197,94,.65);
-  box-shadow: 0 0 0 3px rgba(34,197,94,.15);
+  border-color: var(--primaryLine);
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 .btn{
@@ -175,8 +181,8 @@ a{ color:inherit; }
 }
 .btn:active{ transform: translateY(1px); }
 .btn--primary{
-  border-color: rgba(34,197,94,.45);
-  background: rgba(34,197,94,.15);
+  border-color: var(--primaryLine);
+  background: var(--primaryBgStrong);
 }
 .btn--danger{
   border-color: rgba(239,68,68,.45);
@@ -195,7 +201,7 @@ a{ color:inherit; }
   border: 1px solid rgba(148,163,184,.18);
   border-radius: 14px;
   padding: 12px;
-  background: rgba(2,6,23,.35);
+  background: var(--primaryBgStrong);
 }
 .item__title{
   font-weight: 700;
@@ -221,7 +227,7 @@ a{ color:inherit; }
   border-radius: 12px;
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.22);
-  background: rgba(2,6,23,.35);
+  background: var(--primaryBgStrong);
 }
 .alert--error{
   border-color: rgba(239,68,68,.35);
@@ -252,9 +258,9 @@ a{ color:inherit; }
   color: rgba(148,163,184,.9);
 }
 .stepper__item--active{
-  border-color: rgba(34,197,94,.55);
-  color: rgba(34,197,94,.95);
-  background: rgba(34,197,94,.10);
+  border-color: var(--primaryLine);
+  color: rgba(236,72,153,.95);
+  background: var(--primaryBg);
 }
 
 .summary{
@@ -286,8 +292,8 @@ a{ color:inherit; }
   cursor: not-allowed;
 }
 .slot--selected{
-  border-color: rgba(34,197,94,.55);
-  background: rgba(34,197,94,.10);
+  border-color: var(--primaryLine);
+  background: var(--primaryBg);;
 }
 
 .confirmBox, .doneBox{
@@ -305,6 +311,13 @@ a{ color:inherit; }
   padding: 0 16px 24px;
 }
 
+.timeTableWrap,
+.item,
+.summary,
+.confirmBox, .doneBox{
+  background: rgba(255,255,255,.85);
+}
+
 .timeTableWrap{
   width: 100%;                 /* ✅ 親(card)の幅に必ず合わせる */
   max-width: 100%;             /* ✅ 980固定をやめる（ここが重要） */
@@ -316,7 +329,7 @@ a{ color:inherit; }
 
   border-radius: 14px;
   border: 1px solid rgba(148,163,184,.18);
-  background: rgba(2,6,23,.25);
+  background: var(--card);
 }
 
 .timeTable{
@@ -338,7 +351,7 @@ a{ color:inherit; }
 .timeTable thead th{
   position: sticky;
   top: 0;
-  background: rgba(11,18,32,.92);
+  background: rgba(255,255,255,.92);
   z-index: 3; /* 2 → 3 */
   font-weight: 700;
 }
@@ -346,7 +359,7 @@ a{ color:inherit; }
 .timeTable th:first-child, .timeTable td:first-child{
   position: sticky;
   left: 0;
-  background: rgba(11,18,32,.92);
+  background: rgba(255,255,255,.92);
   z-index: 5; /* 1 → 2 */
   font-weight: 700;
 }
@@ -354,14 +367,14 @@ a{ color:inherit; }
 .timeCell{
   cursor: pointer;
   border-radius: 10px;
-  border: 1px solid rgba(148,163,184,.18);
+  /* border: 1px solid rgba(148,163,184,.18); */
   background: rgba(255,255,255,.02);
 }
 
-.timeCell--ok{
-  border-color: rgba(34,197,94,.45);
-  background: rgba(34,197,94,.10);
-}
+/* .timeCell--ok{
+  border-color: var(--primaryLine);
+  background: var(--primaryBg);
+} */
 
 .timeCell--ng{
   opacity: .45;
@@ -369,7 +382,7 @@ a{ color:inherit; }
 }
 
 .timeCell--selected{
-  outline: 2px solid rgba(34,197,94,.8);
+  outline: 2px solid rgba(236,72,153,.80);
   outline-offset: -2px;
 }
 
@@ -380,11 +393,14 @@ a{ color:inherit; }
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  border: 1px solid rgba(148,163,184,.18);
+  /* border: 1px solid rgba(148,163,184,.18); */
   font-weight: 800;
 }
 
-.badge--ok{ color: rgba(34,197,94,.95); border-color: rgba(34,197,94,.45); }
+.badge--ok{
+  color: rgba(236,72,153,.95);
+  border-color: var(--primaryLine);
+}
 .badge--ng{ color: rgba(148,163,184,.85); }
 
 /* ✅ CSS（100文字まで崩れない見た目）
@@ -397,7 +413,7 @@ a{ color:inherit; }
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.4;
-  color: #666;
+  color: var(--muted);
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -419,7 +435,7 @@ a{ color:inherit; }
   padding: 16px 18px;
   border-radius: 16px;
   border: 1px solid rgba(148,163,184,.22);
-  background: rgba(15,23,42,.92);
+  background: var(--primaryBg);
   box-shadow: 0 12px 28px rgba(0,0,0,.35);
   text-align:center;
   min-width: 220px;
@@ -429,7 +445,7 @@ a{ color:inherit; }
   width: 34px; height: 34px;
   border-radius: 999px;
   border: 3px solid rgba(148,163,184,.25);
-  border-top-color: rgba(34,197,94,.9);
+  border-top-color: rgba(236,72,153,.90);
   animation: spin 0.9s linear infinite;
   margin: 0 auto;
 }
