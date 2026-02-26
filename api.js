@@ -577,7 +577,7 @@ function renderReservations(list) {
     `;
 
     el.querySelector("button").addEventListener("click", async () => {
-      const ok = confirm("この予約をキャンセルしますか？");
+      const ok = await popupConfirm("この予約をキャンセルしますか？");
       if (!ok) return;
 
       const result = await cancelReservation(resv.cancel_token);
@@ -599,10 +599,13 @@ async function cancelReservation(cancelToken) {
     if (!ok) {
       if (r.error === "SAME_DAY_CANCEL_NOT_ALLOWED") {
         const phone = r.admin_phone || "";
-        setStatus("当日の予約キャンセルは承っておりません");
-        alert(`当日のキャンセルについては、${phone}へご連絡ください。`)
-        // setError(`当日のキャンセルについては、${phone}へご連絡ください。`);
-        return { handled: true, refreshed: false }; // ←ここ
+        const msg = `当日のキャンセルについては、${phone}へご連絡ください。`;
+        const msgHtml = `当日のキャンセルについては、以下電話番号に直接ご連絡ください。<br><br>電話番号：${escHtml(phone)}`;
+
+        setStatus("当日のキャンセルは承っておりません。");
+        setError(msg);         // ページ内にも残す（任意）
+        await popupError(msgHtml, "当日キャンセル不可"); // ★モーダル
+        return { refreshed: false };
       }
       throw new Error(r.error || "cancel_failed");
     }
@@ -908,4 +911,42 @@ function isDevMode_() {
   // 例: http://localhost:5500/?dev=1
   const p = new URLSearchParams(location.search);
   return p.get("dev") === "1";
+}
+
+// モーダルライブラリ表示（確認）
+async function popupConfirm(msg, title="確認") {
+  if (!window.Swal) return confirm(msg);
+  const r = await Swal.fire({
+    icon: "question",
+    title,
+    text: msg,
+    showCancelButton: true,
+    confirmButtonText: "はい",
+    cancelButtonText: "やめる",
+  });
+  return r.isConfirmed;
+}
+
+// モーダルライブラリ表示（アラート）
+function popupError(msgHtml, title = "エラー") {
+  // SweetAlert2 読み込み前に呼ばれた場合の保険
+  if (!window.Swal) {
+    alert(`${title}\n\n${msg}`);
+    return;
+  }
+  return Swal.fire({
+    icon: "error",
+    title,
+    html: msgHtml,
+    confirmButtonText: "OK",
+  });
+}
+
+function escHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
