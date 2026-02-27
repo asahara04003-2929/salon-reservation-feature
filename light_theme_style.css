@@ -161,7 +161,7 @@ a{ color:inherit; }
   padding: 12px 12px;
   border-radius: 12px;
   border: 1px solid rgba(148,163,184,.22);
-  background: rgba(2,6,23,.55);
+  background: var(--card);
   color: var(--text);
   outline: none;
 }
@@ -479,4 +479,80 @@ a{ color:inherit; }
   .timeCell{
     border-radius: 8px;
   }
+}
+
+
+
+/* 生年月日：ドラムロール */
+.dob-modal{
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.35);
+  display:flex; align-items:flex-end; justify-content:center;
+  z-index: 9999;
+}
+.dob-sheet{
+  width: min(560px, 100%);
+  background: #fff;
+  border-radius: 16px 16px 0 0;
+  overflow:hidden;
+}
+.dob-header{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid #eee;
+}
+.dob-title{ font-weight: 700; }
+.dob-body{
+  position: relative;
+  display:flex;
+  gap: 6px;
+  padding: 10px 10px 18px;
+}
+.wheel{
+  flex: 1;
+  height: 240px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: y mandatory;
+  padding: 96px 0;
+  position: relative;
+  mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 18%, black 82%, transparent 100%);
+
+}
+.wheel::-webkit-scrollbar{ display:none; }
+.wheel .wheelItem{
+  height: 48px;
+  display:flex; align-items:center; justify-content:center;
+  scroll-snap-align: center;
+  font-size: 18px;
+}
+.dob-centerline{
+  position:absolute;
+  left: 10px;
+  right: 10px;
+
+  /* ✅ 選択位置＝常に中央（ロジックと一致） */
+  top: 50%;
+  transform: translateY(-50%);
+  height: 48px;
+
+  /* 既存の見た目はそのまま */
+  border: 2px solid var(--primaryLine);
+  background: var(--primaryBg);
+  border-radius: 12px;
+  box-shadow: 0 0 0 3px var(--ring);
+  pointer-events:none;
+}
+
+.dob-body::before{
+  content: "年　　　月　　　日";
+  position: absolute;
+  top: 6px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(148,163,184,.85);
+  pointer-events: none;
 }

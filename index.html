@@ -75,8 +75,13 @@
           </label>
 
           <label class="field">
-            <span>生年月日</span>
-            <input name="birthday" type="date" required />
+            <span class="field__label">生年月日 <span class="req">必須</span></span>
+
+            <!-- 表示用（タップでピッカーを開く） -->
+            <input class="input" id="birthDisplay" type="text" placeholder="例: 1990/02/03" readonly />
+
+            <!-- 送信用（FormDataで birthday を取れるように name="birthday" をここに付ける） -->
+            <input id="birthValue" type="hidden" name="birthday" required />
           </label>
 
           <label class="field">
@@ -207,6 +212,24 @@
       <div class="list" id="reservationList"></div>
     </section>
   </main>
+
+  <!-- 生年月日ドラムロールモーダル -->
+  <div id="dobModal" class="dob-modal hidden" role="dialog" aria-modal="true">
+    <div class="dob-sheet">
+      <div class="dob-header">
+        <button type="button" id="dobCancel">キャンセル</button>
+        <div class="dob-title">生年月日</div>
+        <button type="button" id="dobDone">完了</button>
+      </div>
+
+      <div class="dob-body">
+        <div class="wheel" id="wheelYear" aria-label="年"></div>
+        <div class="wheel" id="wheelMonth" aria-label="月"></div>
+        <div class="wheel" id="wheelDay" aria-label="日"></div>
+        <div class="dob-centerline"></div>
+      </div>
+    </div>
+  </div>
 
   <footer class="footer">
     <div class="muted small">

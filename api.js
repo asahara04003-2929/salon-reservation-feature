@@ -226,6 +226,7 @@ function wireEvents() {
     state.weekStart = startOfWeek(new Date());
     await loadAvailabilityWeek();
   });
+  initDobPicker(); // ★追加：生年月日ドラムロール
 }
 
 /**
@@ -290,7 +291,7 @@ function setDefaultDate() {
  * Registration
  */
 async function registerUser() {
-
+  if (!payload.birthday) { setError("生年月日を選択してください。"); setStatus("入力を確認"); return; }
   setError("");
   setStatus("登録中…");
 
@@ -973,4 +974,141 @@ function escHtml(s){
     .replaceAll(">","&gt;")
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
+}
+
+// 生年月日ドラムロールUI
+function initDobPicker(){
+  const birthDisplay = document.getElementById("birthDisplay");
+  const birthValue   = document.getElementById("birthValue");
+
+  const modal  = document.getElementById("dobModal");
+  const wYear  = document.getElementById("wheelYear");
+  const wMonth = document.getElementById("wheelMonth");
+  const wDay   = document.getElementById("wheelDay");
+
+  const btnCancel = document.getElementById("dobCancel");
+  const btnDone   = document.getElementById("dobDone");
+
+  if (!birthDisplay || !birthValue || !modal || !wYear || !wMonth || !wDay) return;
+
+  const pad2 = (n) => String(n).padStart(2,"0");
+  const daysInMonth = (y,m) => new Date(y, m, 0).getDate(); // m:1-12
+
+  const buildWheel = (el, values, formatter) => {
+    el.innerHTML = values.map(v => `<div class="wheelItem" data-value="${v}">${formatter(v)}</div>`).join("");
+  };
+
+  const snapToNearest = (el) => {
+    const first = el.querySelector(".wheelItem");
+    const itemH = first?.offsetHeight || 48;
+
+    // いま中央に最も近い要素を探して、その位置へスナップ
+    const center = el.scrollTop + el.clientHeight / 2;
+    const items = [...el.querySelectorAll(".wheelItem")];
+    if (!items.length) return;
+
+    let best = items[0];
+    let bestDist = Infinity;
+    for (const it of items) {
+      const itCenter = it.offsetTop + (it.offsetHeight / 2);
+      const dist = Math.abs(itCenter - center);
+      if (dist < bestDist) { bestDist = dist; best = it; }
+    }
+    const top = best.offsetTop - (el.clientHeight / 2 - itemH / 2);
+    el.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  };
+
+  const getSelectedValue = (el) => {
+    const center = el.scrollTop + el.clientHeight / 2;
+    const items = [...el.querySelectorAll(".wheelItem")];
+    if (!items.length) return null;
+
+    let best = null;
+    let bestDist = Infinity;
+    for (const it of items) {
+      const itCenter = it.offsetTop + (it.offsetHeight / 2);
+      const dist = Math.abs(itCenter - center);
+      if (dist < bestDist) { bestDist = dist; best = it; }
+    }
+    return best ? Number(best.dataset.value) : null;
+  };
+
+  const setSelectedValue = (el, value) => {
+    const items = [...el.querySelectorAll(".wheelItem")];
+    const item = items.find(x => Number(x.dataset.value) === Number(value));
+    if (!item) return;
+
+    const itemH = item.offsetHeight || 48;
+    // itemの中心がホイール中央に来るようにscrollTopを計算
+    const top = item.offsetTop - (el.clientHeight / 2 - itemH / 2);
+    el.scrollTop = Math.max(0, top);
+  };
+
+  const rebuildDays = (y, m, keepDay) => {
+    const max = daysInMonth(y, m);
+    const days = Array.from({length:max}, (_,i)=>i+1);
+    buildWheel(wDay, days, d => `${d}日`);
+    const d = Math.min(keepDay ?? 1, max);
+    setSelectedValue(wDay, d);
+  };
+
+  let timer = null;
+  const onWheelScroll = (el, cb) => {
+    el.addEventListener("scroll", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        snapToNearest(el);
+        cb?.();
+      }, 80);
+    }, { passive:true });
+  };
+
+  const openPicker = (initial) => {
+    const now = new Date();
+    const years = Array.from({length:(now.getFullYear()-1900+1)}, (_,i)=>1900+i);
+    buildWheel(wYear, years, y => `${y}年`);
+    buildWheel(wMonth, Array.from({length:12},(_,i)=>i+1), m => `${m}月`);
+
+    const init = initial ?? { y:2000, m:1, d:1 };
+    rebuildDays(init.y, init.m, init.d);
+
+    // ✅ 先に表示（display:none解除してからスクロール計算）
+    modal.classList.remove("hidden");
+
+    // ✅ レイアウト確定後に初期位置をセット（超重要）
+    requestAnimationFrame(() => {
+      setSelectedValue(wYear, init.y);
+      setSelectedValue(wMonth, init.m);
+      setSelectedValue(wDay, init.d);
+    });
+  };
+
+  const closePicker = () => modal.classList.add("hidden");
+
+  birthDisplay.addEventListener("click", () => {
+    const v = birthValue.value; // YYYY-MM-DD
+    if (v) {
+      const [y,m,d] = v.split("-").map(Number);
+      openPicker({ y, m, d });
+    } else {
+      openPicker({ y:2000, m:1, d:1 });
+    }
+  });
+
+  btnCancel.addEventListener("click", closePicker);
+
+  btnDone.addEventListener("click", () => {
+    const y = getSelectedValue(wYear);
+    const m = getSelectedValue(wMonth);
+    const d = getSelectedValue(wDay);
+    if (!y || !m || !d) return;
+
+    birthValue.value = `${y}-${pad2(m)}-${pad2(d)}`;      // 送信用（FormDataで拾う）
+    birthDisplay.value = `${y}/${pad2(m)}/${pad2(d)}`;    // 表示用
+    closePicker();
+  });
+
+  modal.addEventListener("click", (e) => {
+    if (e.target === modal) closePicker();
+  });
 }
