@@ -14,39 +14,73 @@ const { GAS_URL, LIFF_ID } = env;
 /**
  * API：GET/POST
  */
-async function apiGet(params) {
-  showLoading("読み込み中…");
-  try{
-    const url = new URL(GAS_URL);
-    Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
-    const res = await fetch(url.toString(), { method: "GET" });
-    return await res.json();
+async function apiRequest(method, paramsOrPayload) {
+  showLoading(method === "GET" ? "読み込み中…" : "処理中…");
+
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000); // 20s timeout
+
+  try {
+    let url = GAS_URL;
+    const opt = { method, signal: ctrl.signal };
+
+    if (method === "GET") {
+      const u = new URL(GAS_URL);
+      Object.entries(paramsOrPayload || {}).forEach(([k, v]) => u.searchParams.set(k, v));
+      url = u.toString();
+    } else {
+      // ✅ GASのCORSプリフライト回避（重要）
+      opt.headers = { "Content-Type": "text/plain;charset=utf-8" };
+      opt.body = JSON.stringify(paramsOrPayload || {});
+    }
+
+    const res = await fetch(url, opt);
+    const text = await res.text();
+
+    // HTTPエラーでも本文にGASのエラーが入ることがあるので先にJSON化を試す
+    let data;
+    try { data = JSON.parse(text); }
+    catch { data = { ok:false, error:"INVALID_JSON_RESPONSE", raw:text, status: res.status }; }
+
+    if (!res.ok && data?.ok !== true) {
+      return { ok:false, error: data?.error || `HTTP_${res.status}`, raw: data?.raw || text };
+    }
+    return data;
+  } catch (e) {
+    const msg = (e?.name === "AbortError") ? "TIMEOUT" : String(e?.message || e);
+    return { ok:false, error: msg };
   } finally {
+    clearTimeout(timer);
     hideLoading();
   }
 }
 
-async function apiPost(payload) {
-  showLoading("処理中…");
-  try{
-    const res = await fetch(GAS_URL, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    const text = await res.text();
-    try { return JSON.parse(text); }
-    catch { return { ok:false, error:"INVALID_JSON_RESPONSE", raw:text }; }
-  } finally {
-    hideLoading();
-  }
-}
+const apiGet  = (params)  => apiRequest("GET", params);
+const apiPost = (payload) => apiRequest("POST", payload);
 
 /**
  * UI helpers
  */
 const $ = (id) => document.getElementById(id);
-function show(el) { el.classList.remove("hidden"); }
-function hide(el) { el.classList.add("hidden"); }
+let el = null;
+document.addEventListener("DOMContentLoaded", () => {
+  el = {
+    bookingCard: $("bookingCard"),
+    registerCard: $("registerCard"),
+    myPageCard: $("myPageCard"),
+    timeHead: $("timeTableHead"),
+    timeBody: $("timeTableBody"),
+    weekLabel: $("weekLabel"),
+    selectedPlanBox: $("selectedPlanBox"),
+    noteInput: $("noteInput"),
+  };
+  initLiff();
+});
+
+
+
+function show(node) { node?.classList.remove("hidden"); }
+function hide(node) { node?.classList.add("hidden"); }
 function setError(msg) {
   const box = $("errorBox");
   if (!box) return;
@@ -99,15 +133,6 @@ const state = {
   lastReservation: null,
   note: "", // ✅追加（任意）
 };
-
-
-
-/**
- * 初期化：静的Webとして起動
- */
-document.addEventListener("DOMContentLoaded", () => {
-  initLiff();
-});
 
 
 /**
@@ -340,7 +365,7 @@ async function registerUser() {
 
         setStatus("登録できません");
         setError(msg);
-        await popupError(escHtml(msg).replace(/\n/g, "<br>"), "登録不可");
+        await popupError(escapeHtml(msg).replace(/\n/g, "<br>"), "登録不可");
         return;
       }
 
@@ -452,61 +477,6 @@ function renderPlans() {
     gotoStep(2);
   });
 }
-
-// async function loadAvailability() {
-//   setError("");
-
-//   if (!state.selectedPlan) return;
-//   if (!state.selectedDate) return;
-
-//   setStatus("空き枠を取得中…");
-//   $("slotGrid").innerHTML = "";
-//   $("slotHint").textContent = "";
-
-//   try {
-//     const r = await apiGet({
-//       action: "availability",
-//       date: state.selectedDate,
-//       plan_id: state.selectedPlan.plan_id,
-//     });
-//     if (!r.ok) throw new Error(r.error || "availability_failed");
-
-//     state.availableSlots = r.available || [];
-//     $("slotHint").textContent = r.slot_source_hint || "※ 枠情報を参照しています";
-
-//     renderSlots();
-//     setStatus("日時を選択してください");
-//   } catch (e) {
-//     console.error(e);
-//     setStatus("空き枠取得に失敗");
-//     setError(String(e?.message || e));
-//   }
-// }
-
-// function renderSlots() {
-//   const grid = $("slotGrid");
-//   grid.innerHTML = "";
-
-//   const slots = state.availableSlots || [];
-//   if (!slots.length) {
-//     grid.innerHTML = `<div class="alert">この日は予約枠がありません（受付不可、または満席/受付終了の可能性）。</div>`;
-//     return;
-//   }
-
-//   slots.forEach(iso => {
-//     const btn = document.createElement("div");
-//     btn.className = "slot";
-//     btn.textContent = fmtTime(iso);
-//     btn.addEventListener("click", () => {
-//       state.selectedStartAt = iso;
-//       [...grid.children].forEach(c => c.classList.remove("slot--selected"));
-//       btn.classList.add("slot--selected");
-//       buildConfirm();
-//       gotoStep(3);
-//     });
-//     grid.appendChild(btn);
-//   });
-// }
 
 function buildConfirm() {
   const start = state.selectedStartAt;
@@ -647,7 +617,7 @@ async function cancelReservation(cancelToken) {
       if (r.error === "SAME_DAY_CANCEL_NOT_ALLOWED") {
         const phone = r.admin_phone || "";
         const msg = `当日のキャンセルについては、${phone}へご連絡ください。`;
-        const msgHtml = `当日のキャンセルについては、下記電話番号に直接ご連絡ください。<br><br>電話番号：${escHtml(phone)}`;
+        const msgHtml = `当日のキャンセルについては、下記電話番号に直接ご連絡ください。<br><br>電話番号：${escapeHtml(phone)}`;
 
         setStatus("当日のキャンセルは承っておりません。");
         setError(msg);         // ページ内にも残す（任意）
@@ -786,19 +756,10 @@ async function loadAvailabilityWeek() {
       const free = subtractIntervals_(windows, busy);
       const starts = buildStartMins_(free, Number(r.granularity_min), Number(r.required_duration_min), minStartMin);
 
-      // renderWeekTable は iso を探す実装になってるので、
-      // いったん "YYYY-MM-DDTHH:mm:00+09:00" 形式の疑似ISO文字列にして渡す
-      // （最小修正で済ませるため）
-      const minStartIso = new Date(Date.now() + Number(r.granularity_min) * 60000);
+      // HH:mm の Set を作る
+      const slotSet = new Set(starts.map(min => minToHHMM_(min)));
 
-      const pseudoIsos = starts
-        .map(min => {
-          const hhmm = minToHHMM_(min);
-          return `${key}T${hhmm}:00+09:00`;
-        })
-        .filter(iso => new Date(iso).getTime() > minStartIso.getTime()); // ★ここ
-
-      return { date: d, slots: pseudoIsos };
+      return { date: d, slotSet }; // ← slots配列じゃなくSet
     });
 
     renderWeekTable(dayResults);
@@ -815,77 +776,55 @@ async function loadAvailabilityWeek() {
   }
 }
 
+
 function renderWeekTable(dayResults){
-  console.log("renderWeekTable dayResults:", dayResults);
-  // dayResults: [{date, slots:[iso...]}, ...7]
+  if (!el?.timeHead || !el?.timeBody) return;
+  const openStr  = state.businessOpen || "09:00";
+  const closeStr = state.businessClose || "18:00";
+  const granMin  = Number(state.granMin) || 30;
 
-  // 表の縦軸（時間）を営業時間と粒度で固定生成（×も表示するため）
-  const BUSINESS_OPEN = state.businessOpen || "09:00";
-  const BUSINESS_CLOSE = state.businessClose || "18:00";
-  const GRAN_MIN = Number(state.granMin) || 30;
+  const times = buildTimes_(openStr, closeStr, granMin);
 
-  const times = buildTimes_(BUSINESS_OPEN, BUSINESS_CLOSE, GRAN_MIN);
-
-  // ヘッダー
-  $("timeTableHead").innerHTML = `
+  el.timeHead.innerHTML = `
     <tr>
       <th>時間</th>
-      ${dayResults.map((dr)=>{
+      ${dayResults.map(dr => {
         const d = dr.date;
-        const label = `${d.getMonth()+1}/${d.getDate()} (${dowJa(d)})`;
-        return `<th>${label}</th>`;
+        return `<th>${d.getMonth()+1}/${d.getDate()} (${dowJa(d)})</th>`;
       }).join("")}
     </tr>
   `;
 
-  // body
-  const rows = times.map(time => {
-    const tds = dayResults.map((dr)=>{
-      const iso = findIsoByDateAndTime_(dr.slots, dr.date, time);
-      const ok = !!iso;
+  el.timeBody.innerHTML = times.map(time => {
+    const tds = dayResults.map(dr => {
+      const ok = dr.slotSet.has(time);
       const cls = ok ? "timeCell timeCell--ok" : "timeCell timeCell--ng";
       const badge = ok ? `<span class="badge badge--ok">○</span>` : `<span class="badge badge--ng">×</span>`;
-      const dataAttr = ok ? `data-iso="${iso}"` : "";
+      // data は iso じゃなく「日付+時刻」から作れる
+      const dataAttr = ok ? `data-date="${ymd(dr.date)}" data-time="${time}"` : "";
       return `<td><div class="${cls}" ${dataAttr}>${badge}</div></td>`;
     }).join("");
-
     return `<tr><td>${time}</td>${tds}</tr>`;
   }).join("");
 
-  $("timeTableBody").innerHTML = rows;
-
-  // クリックイベント（delegation）
-  const body = $("timeTableBody");
-  body.onclick = (ev) => {
+  el.timeBody.onclick = (ev) => {
     const cell = ev.target.closest(".timeCell--ok");
     if (!cell) return;
-    const iso = cell.getAttribute("data-iso");
-    if (!iso) return;
 
     document.querySelectorAll(".timeCell--selected")
       .forEach(x=>x.classList.remove("timeCell--selected"));
     cell.classList.add("timeCell--selected");
 
-    state.selectedStartAt = iso;
+    // ISOはここで生成（+09:00固定）
+    const date = cell.getAttribute("data-date");
+    const time = cell.getAttribute("data-time");
+    state.selectedStartAt = `${date}T${time}:00+09:00`;
+
     buildConfirm();
     gotoStep(3);
   };
 }
 
-function findIsoByDateAndTime_(isos, dateObj, timeStr){
-  // isos: ["2026-02-22T10:00:00+09:00", ...]
-  const y = dateObj.getFullYear();
-  const m = String(dateObj.getMonth()+1).padStart(2,"0");
-  const d = String(dateObj.getDate()).padStart(2,"0");
-  const prefix = `${y}-${m}-${d}T${timeStr}:`;
-  return isos.find(s => String(s).startsWith(prefix)) || null;
-}
-
-
-// ★ 追加：固定時間軸を生成（CONFIGと合わせるなら、この値もサーバから返してもOK）
-const BUSINESS_OPEN = "09:00";
-const BUSINESS_CLOSE = "18:00";
-const GRAN_MIN = 10; // CONFIGの granularity_min と合わせる
 
 function buildTimes_(openStr, closeStr, granMin){
   const [oh, om] = openStr.split(":").map(Number);
@@ -909,35 +848,25 @@ function buildTimes_(openStr, closeStr, granMin){
  * 2) 追加CSS（style.css か <style>）を貼る
  ********************************************************************/
 
-/** 100文字までで表示（それ以上は…にする） */
-function clamp100_(s) {
-  const t = String(s ?? "").trim(); // ← 改行は残す
-  return t.length > 100 ? (t.slice(0, 100) + "…") : t;
-}
-
-/** 改行も軽く整形して出したい場合（任意） */
-function escapeHtml(s) {
+function escapeHtml(s){
   return String(s ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
 }
 
-function escapeHtmlWithBreaks(s) {
-  // 1) いったん全部エスケープ（<br>も文字として扱われる）
+function escapeHtmlWithBreaks(s){
   let t = escapeHtml(s);
-
-  // 2) \n を <br> に変換（Windows改行にも対応）
   t = t.replace(/\r\n|\r|\n/g, "<br>");
-
-  // 3) ユーザーが <br> と書いたものも改行として扱いたい場合：
-  //    エスケープ後は &lt;br&gt; / &lt;br/&gt; / &lt;br /&gt; になっているので、それだけ復活
-  t = t
-    .replace(/&lt;br\s*\/?&gt;/gi, "<br>");
-
+  t = t.replace(/&lt;br\s*\/?&gt;/gi, "<br>");
   return t;
+}
+
+function clamp100_(s) {
+  const t = String(s ?? "").trim();
+  return t.length > 100 ? (t.slice(0, 100) + "…") : t;
 }
 
 
@@ -1010,16 +939,6 @@ async function popupSameDayCancel(phone, msgHtml, title = "エラー"){
     // ✅ ユーザー操作（ボタン押下）なので発信がブロックされにくい
     window.location.href = `tel:${tel}`;
   }
-}
-
-// HTMLコードのエスケープ
-function escHtml(s){
-  return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
 }
 
 // 生年月日ドラムロールUI
@@ -1164,13 +1083,4 @@ function showPenaltyBlocked(adminPhone){
   const phone = adminPhone || "";
   const msgHtml = `予約システムからの予約受付ができませんので、LINE公式アカウントにて連絡いただく、もしくは下記電話番号に直接連絡をお願いします。<br>電話番号：${escapeHtml(phone)}`;
   popupSameDayCancel(phone, msgHtml, "予約不可")
-}
-
-function escapeHtml(s){
-  return String(s ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#39;");
 }
