@@ -237,6 +237,20 @@ function buildUserNameMap_() {
   return map;
 }
 
+// 準備時間（分）を返すヘルパー
+function getPreparationMinutes_() {
+  const cfg = getConfigMap_();
+  const granMin = getGranularityMinutes_();
+
+  const lotRaw = (cfg.preparation_slot || "").toString().trim();
+  const lot = Number(lotRaw);
+
+  if (!Number.isFinite(lot) || lot <= 0) return 0;
+  if (!Number.isFinite(granMin) || granMin <= 0) return 0;
+
+  return lot * granMin;
+}
+
 
 /** =========================
  *  HTTP Entry
@@ -976,8 +990,24 @@ function hasConflict_(startAt, endAt) {
   const colStart  = sh.getRange(2, idx.reserved_start+1, n, 1).getValues();
   const colEnd    = sh.getRange(2, idx.reserved_end+1, n, 1).getValues();
 
+  const prepMin = getPreparationMinutes_();
+  const bh = getBusinessHours_();
+
+  // 候補側は「終了 + 準備」を重複判定に使う（ただし close を跨ぐ準備は無視）
+  const candEnd = new Date(endAt.getTime());
+  if (prepMin > 0) {
+    const close = new Date(startAt.getFullYear(), startAt.getMonth(), startAt.getDate(), bh.ch, bh.cm, 0, 0);
+    const endMin = minutesOfDay_(candEnd);
+    const closeMin = bh.ch * 60 + bh.cm;
+
+    if (endMin < closeMin) {
+      const ext = new Date(candEnd.getTime() + prepMin * 60 * 1000);
+      candEnd.setTime(Math.min(ext.getTime(), close.getTime()));
+    }
+  }
+
   const a0 = startAt.getTime();
-  const a1 = endAt.getTime();
+  const a1 = candEnd.getTime();
 
   for (let i=0; i<n; i++){
     if (String(colStatus[i][0]).trim() !== 'CONFIRMED') continue;
@@ -985,7 +1015,20 @@ function hasConflict_(startAt, endAt) {
     const e = coerceToDate_(colEnd[i][0]);
     if (!s || !e) continue;
 
-    if (a0 < e.getTime() && a1 > s.getTime()) return true;
+    // 既存側も「終了 + 準備」を重複判定に使う（ただし close を跨ぐ準備は無視）
+    const e2 = new Date(e.getTime());
+    if (prepMin > 0) {
+      const close = new Date(s.getFullYear(), s.getMonth(), s.getDate(), bh.ch, bh.cm, 0, 0);
+      const endMin = minutesOfDay_(e2);
+      const closeMin = bh.ch * 60 + bh.cm;
+
+      if (endMin < closeMin) {
+        const ext = new Date(e2.getTime() + prepMin * 60 * 1000);
+        e2.setTime(Math.min(ext.getTime(), close.getTime()));
+      }
+    }
+
+    if (a0 < e2.getTime() && a1 > s.getTime()) return true;
   }
   return false;
 }
@@ -1131,9 +1174,11 @@ function getAvailability_(dateYmd, planId) {
   // materials（1日分）
   const mats = getAvailabilityRangeMaterialsByDuration_(dateYmd, 1, planId, durationMin);
 
-  // mats を元にサーバで available を作る（フロントで作るなら返さなくてもOK）
   const granMin = mats.granularity_min;
-  const requiredMs = durationMin * 60 * 1000;
+  const prepMin = getPreparationMinutes_();
+
+  const requiredMsService = durationMin * 60 * 1000;
+  const requiredMsOverlap = (durationMin + prepMin) * 60 * 1000;
 
   const windows = mats.windows_by_date[dateYmd] || [];
   const busy = mats.busy_by_date[dateYmd] || [];
@@ -1141,14 +1186,16 @@ function getAvailability_(dateYmd, planId) {
 
   const available = [];
 
-  // [startMin,endMin) の window 内で gran ごとに候補を作り、busy と重なるものを除外
   for (const w of windows) {
     const w0 = w[0], w1 = w[1];
-    for (let tMin = ceilMinToGran_(w0, granMin); (tMin * 60000 + requiredMs) <= w1 * 60000; tMin += granMin) {
-      if (minStartMin !== null && tMin <= minStartMin) continue;
-      const endMin = tMin + Math.round(requiredMs / 60000);
 
-      if (isOverlappingMinutes_(tMin, endMin, busy)) continue;
+    // ✅ business_close は「施術時間」だけで判定（準備時間は見ない）
+    for (let tMin = ceilMinToGran_(w0, granMin); (tMin * 60000 + requiredMsService) <= w1 * 60000; tMin += granMin) {
+      if (minStartMin !== null && tMin <= minStartMin) continue;
+
+      // ✅ 重複判定は「施術 + 準備」
+      const endMinOverlap = tMin + Math.round(requiredMsOverlap / 60000);
+      if (isOverlappingMinutes_(tMin, endMinOverlap, busy)) continue;
 
       const dt = new Date(fromStart.getFullYear(), fromStart.getMonth(), fromStart.getDate(), 0, 0, 0, 0);
       dt.setMinutes(tMin);
@@ -1161,7 +1208,6 @@ function getAvailability_(dateYmd, planId) {
     slot_source_hint: 'materials（windows/busy）から生成'
   };
 }
-
 // minutesの重なり判定（busyは [[s,e],...]）
 function isOverlappingMinutes_(s, e, busyIntervals){
   for (const b of busyIntervals) {
@@ -1604,12 +1650,14 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
   const rangeEnd = new Date(fromStart.getTime() + nDays * 24 * 60 * 60 * 1000);
 
   const granMin = getGranularityMinutes_();
-  const requiredMs = durationMin * 60 * 1000;
+  const prepMin = getPreparationMinutes_();
+
+  const requiredMsService = durationMin * 60 * 1000;
+  const requiredMsOverlap = (durationMin + prepMin) * 60 * 1000;
 
   const tz = "Asia/Tokyo";
   const now = new Date();
 
-  // ✅ しきい値：現在日時 + granularity_min
   const threshold = new Date(now.getTime() + granMin * 60 * 1000);
 
   const confirmed = listConfirmedReservationsOverlapping_(fromStart, rangeEnd);
@@ -1624,7 +1672,6 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
     const dayEnd   = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     const dateKey  = formatYmd_(dayStart);
 
-    // ✅ その日の終わり(=翌日0:00)が threshold 以下なら「完全に過去日」扱いで空
     if (dayEnd.getTime() <= threshold.getTime()) {
       byDate[dateKey] = [];
       continue;
@@ -1640,15 +1687,17 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
       const bh2 = getBusinessHours_();
       const anchor = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate(), bh2.oh, bh2.om, 0, 0);
 
-      for (let t = ceilToGranFromAnchor_(wStart, anchor, granMin).getTime(); t + requiredMs <= wEnd.getTime(); t += granMin * 60 * 1000) {
+      // ✅ business_close は「施術時間」だけで判定（準備時間は見ない）
+      for (let t = ceilToGranFromAnchor_(wStart, anchor, granMin).getTime(); t + requiredMsService <= wEnd.getTime(); t += granMin * 60 * 1000) {
         const startAt = new Date(t);
-        const endAt   = new Date(t + requiredMs);
+        const endAtService = new Date(t + requiredMsService);
+        const endAtOverlap = new Date(t + requiredMsOverlap);
 
-        // ✅ しきい値以前は不可（過去扱い）
         if (startAt.getTime() <= threshold.getTime()) continue;
 
-        if (isInBlackout_(startAt, endAt, blackouts)) continue;
-        if (hasConflictInList_(startAt, endAt, confirmed)) continue;
+        // ✅ blackout/重複判定は「施術 + 準備」
+        if (isInBlackout_(startAt, endAtOverlap, blackouts)) continue;
+        if (hasConflictInList_(startAt, endAtOverlap, confirmed)) continue;
 
         available.push(toIsoWithOffset_(startAt));
       }
@@ -2279,12 +2328,15 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
 
   const n = lastRow - 1;
 
-  // 必要列だけ一括取得
   const colStatus = sh.getRange(2, idx.status + 1, n, 1).getValues();
   const colStart  = sh.getRange(2, idx.reserved_start + 1, n, 1).getValues();
   const colEnd    = sh.getRange(2, idx.reserved_end + 1, n, 1).getValues();
 
   const out = {};
+
+  const prepMin = getPreparationMinutes_();
+  const bh = getBusinessHours_();
+  const closeMin = bh.ch * 60 + bh.cm;
 
   for (let i = 0; i < n; i++) {
     const st = String(colStatus[i][0] || '').trim();
@@ -2294,14 +2346,22 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
     const e = coerceToDate_(colEnd[i][0]);
     if (!s || !e || e <= s) continue;
 
-    // 範囲外は除外
     if (s >= rangeEnd || e <= rangeStart) continue;
 
-    // 日跨ぎは日ごとに分割（JS側が楽になる）
-    splitIntoDailyIntervals_(s, e, out);
+    // ✅ 予約の「busy」は、終了に準備時間を足す（ただし close を跨ぐ準備は無視）
+    const e2 = new Date(e.getTime());
+    if (prepMin > 0) {
+      const endMin0 = minutesOfDay_(e2);
+      if (endMin0 < closeMin) {
+        const extEndMin = Math.min(endMin0 + prepMin, closeMin);
+        const deltaMin = extEndMin - endMin0;
+        e2.setTime(e2.getTime() + deltaMin * 60 * 1000);
+      }
+    }
+
+    splitIntoDailyIntervals_(s, e2, out);
   }
 
-  // merge
   for (const k of Object.keys(out)) out[k] = mergeIntervals_(out[k]);
 
   return out;
@@ -2696,3 +2756,5 @@ function reservationDetailsUpdate(){
     lock.releaseLock();
   }
 }
+
+
