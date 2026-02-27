@@ -712,35 +712,46 @@ function createReservation_(body) {
     const row = header.map(h => (h in rowObj ? rowObj[h] : ''));
     sh.appendRow(row);
 
+    const adminLineUserId = getAdminLineUserId_();
+    const isAdminSelfReserve = adminLineUserId && String(lineUserId).trim() === adminLineUserId;
+
     // ★ 管理者メール送信（CONFIGに admin_emails がある時だけ）
-    try {
-      const reservation = {
-        reservation_id: reservationId,
-        reserved_start: startAt,
-        reserved_end: endAt,
-      };
-      
-      sendAdminMailOnReserve_(reservation, user, planNames, priceStr);
-    } catch (mailErr) {
-      // メール失敗で予約自体を失敗にしたくない場合は握りつぶす
-      console.error("admin mail failed:", mailErr);
+    // ※ただし admin本人の予約なら送らない
+    if (!isAdminSelfReserve) {
+      try {
+        const reservation = {
+          reservation_id: reservationId,
+          reserved_start: startAt,
+          reserved_end: endAt,
+        };
+
+        // note も渡す（下の「3)」も反映する場合）
+        sendAdminMailOnReserve_(reservation, user, planNames, priceStr, note);
+      } catch (mailErr) {
+        console.error("admin mail failed:", mailErr);
+      }
+    } else {
+      console.log("[reserve] skip notifications (admin self reserve)");
     }
 
     // ★ 予約確定をユーザーへPush通知（失敗しても予約は成功扱い）
-    try {
-      const tz = "Asia/Tokyo";
-      const startStr = Utilities.formatDate(startAt, tz, "yyyy/MM/dd HH:mm");
-      const endStr   = Utilities.formatDate(endAt, tz, "HH:mm");
-      
-      pushLineMessage_(lineUserId,
-        "✅ 予約が確定しました\n" +
-        `日時：${startStr} - ${endStr}\n` +
-        `プラン：${planNames}\n` +
-        `料金：${priceStr}円\n` +
-        `予約ID：${reservationId}`
-      );
-    } catch (pushErr) {
-      console.error("push on reserve failed:", pushErr);
+    // ※ただし admin本人の予約なら送らない
+    if (!isAdminSelfReserve) {
+      try {
+        const tz = "Asia/Tokyo";
+        const startStr = Utilities.formatDate(startAt, tz, "yyyy/MM/dd HH:mm");
+        const endStr   = Utilities.formatDate(endAt, tz, "HH:mm");
+
+        pushLineMessage_(lineUserId,
+          "✅ 予約が確定しました\n" +
+          `日時：${startStr} - ${endStr}\n` +
+          `プラン：${planNames}\n` +
+          `料金：${priceStr}円\n` +
+          `予約ID：${reservationId}`
+        );
+      } catch (pushErr) {
+        console.error("push on reserve failed:", pushErr);
+      }
     }
 
     return {
@@ -1701,9 +1712,9 @@ function getAdminEmails_() {
   return raw.split(",").map(s => s.trim()).filter(Boolean);
 }
 
-function sendAdminMailOnReserve_(reservation, user, planNames, priceStr) {
+function sendAdminMailOnReserve_(reservation, user, planNames, priceStr, note) {
   const emails = getAdminEmails_();
-  if (emails.length === 0) return; // 設定なしなら送らない
+  if (emails.length === 0) return;
 
   const cfg = getConfigMap_();
   const prefix = (cfg.mail_subject_prefix || "[予約]").trim();
@@ -1712,7 +1723,7 @@ function sendAdminMailOnReserve_(reservation, user, planNames, priceStr) {
   const start = Utilities.formatDate(new Date(reservation.reserved_start), tz, "yyyy/MM/dd HH:mm");
   const end   = Utilities.formatDate(new Date(reservation.reserved_end), tz, "HH:mm");
 
-  const age = calcAgeJst_(user.birthday); // user.birthday に生年月日が入ってる前提
+  const age = calcAgeJst_(user.birthday);
 
   const subject = `${prefix} 新規予約 ${start}`;
   const body =
@@ -1736,11 +1747,7 @@ function sendAdminMailOnReserve_(reservation, user, planNames, priceStr) {
     ステータス: CONFIRMED
     `;
 
-  MailApp.sendEmail({
-    to: emails.join(","),
-    subject,
-    body
-  });
+  MailApp.sendEmail({ to: emails.join(","), subject, body });
 }
 
 function sendAdminMailOnCancel_(reservation, user, planNames, priceStr) {
@@ -2332,4 +2339,9 @@ function isGenderAllowed_(gender, allowed) {
   if (!allowed || allowed.length === 0) return true; // 制限なし
   const g = String(gender || "").trim().toLowerCase();
   return allowed.includes(g);
+}
+
+function getAdminLineUserId_() {
+  const cfg = getConfigMap_();
+  return String(cfg.admin_line_user_id || "").trim();
 }
