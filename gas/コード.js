@@ -327,6 +327,7 @@ function doPost(e) {
       ok: false,
       error: String(err && err.message ? err.message : err),
       admin_phone: err && err.admin_phone ? String(err.admin_phone) : "",
+      allowed_genders: err && err.allowed_genders ? err.allowed_genders : null, // ★追加
       stack: err && err.stack ? String(err.stack) : null
     });
   }
@@ -439,6 +440,14 @@ function upsertUser_(body) {
   const kana = reqBody_(body, 'kana');
   const birthday = (body.birthday || "").toString().trim(); // ★追加 (YYYY-MM-DD想定)
   const gender = reqBody_(body, 'gender');
+
+  // ★ allowed_gender チェック
+  const allowed = getAllowedGenders_(); // []なら全許可
+  if (!isGenderAllowed_(gender, allowed)) {
+    const err = new Error("GENDER_NOT_ALLOWED");
+    err.allowed_genders = allowed; // doPostで返せるように
+    throw err;
+  }
 
   // ★ここ重要：body.phone が数値で来ても文字列にする（先頭0維持）
   // 例: 090-1234-5678 → "09012345678"
@@ -2281,4 +2290,22 @@ function calcAgeJst_(birthdayRaw, nowDate) {
   // 異常値ガード（空返し）
   if (!Number.isFinite(age) || age < 0 || age > 130) return "";
   return String(age);
+}
+
+// allowed_gender を読むヘルパー
+function getAllowedGenders_() {
+  const cfg = getConfigMap_();
+  const raw = (cfg.allowed_gender || "").trim();
+  if (!raw) return []; // 空なら制限なし（全許可）
+
+  return raw
+    .split(",")
+    .map(s => String(s).trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isGenderAllowed_(gender, allowed) {
+  if (!allowed || allowed.length === 0) return true; // 制限なし
+  const g = String(gender || "").trim().toLowerCase();
+  return allowed.includes(g);
 }

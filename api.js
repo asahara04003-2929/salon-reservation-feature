@@ -291,26 +291,57 @@ function setDefaultDate() {
  * Registration
  */
 async function registerUser() {
-  if (!payload.birthday) { setError("生年月日を選択してください。"); setStatus("入力を確認"); return; }
   setError("");
-  setStatus("登録中…");
 
   const fd = new FormData($("registerForm"));
   const payload = {
     action: "users_upsert",
     line_user_id: state.lineUserId,
-    nick_name: state.nickName || "",  // ★追加
+    nick_name: state.nickName || "",
     name: String(fd.get("name") || "").trim(),
     kana: String(fd.get("kana") || "").trim(),
-    birthday: String(fd.get("birthday") || "").trim(), // ★追加（YYYY-MM-DD）
-    gender: String(fd.get("gender") || "").trim(),
+    birthday: String(fd.get("birthday") || "").trim(), // YYYY-MM-DD
+    gender: String(fd.get("gender") || "").trim(),     // male/female/other
     phone: String(fd.get("phone") || "").replace(/[^0-9]/g, "").trim(),
     email: String(fd.get("email") || "").trim(),
   };
 
+  // 必須チェック
+  if (!payload.birthday) {
+    setError("生年月日を選択してください。");
+    setStatus("入力を確認");
+    return;
+  }
+  if (!payload.gender) {
+    setError("性別を選択してください。");
+    setStatus("入力を確認");
+    return;
+  }
+
+  setStatus("登録中…");
+
   try {
     const r = await apiPost(payload);
-    if (!r.ok) throw new Error(r.error || "register_failed");
+    if (!r.ok) {
+      // ★ 性別NGのハンドリング
+      if (r.error === "GENDER_NOT_ALLOWED") {
+        const map = { male: "男性", female: "女性", other: "その他" };
+        const allowed = Array.isArray(r.allowed_genders) ? r.allowed_genders : [];
+        const allowedJa = allowed.map(x => map[x] || x).join("、");
+
+        const msg = allowed.length
+          ? `このサロンでは登録できる性別が制限されています。\n許可：${allowedJa}\n\nお手数ですが選択を変更してください。`
+          : `このサロンでは登録できる性別が制限されています。\nお手数ですが選択を変更してください。`;
+
+        setStatus("登録できません");
+        setError(msg);
+        await popupError(escHtml(msg).replace(/\n/g, "<br>"), "登録不可");
+        return;
+      }
+
+      throw new Error(r.error || "register_failed");
+    }
+
     state.user = r.user;
     hide($("registerCard"));
     show($("bookingCard"));
