@@ -72,9 +72,10 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
   // ★タイトル（YYYY/MM）
   const ym = `${year}/${String(month).padStart(2, "0")}`;
   if (titleCellA1) calSh.getRange(titleCellA1).setValue(ym);
+
   // その月の1日・末日
   const firstDay = new Date(year, month - 1, 1, 0, 0, 0, 0);
-  const lastDay = new Date(year, month, 0, 23, 59, 59, 999);
+  const lastDay  = new Date(year, month, 0, 23, 59, 59, 999);
   const daysInMonth = new Date(year, month, 0).getDate();
 
   // 日曜始まり
@@ -88,26 +89,44 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
   clearRange.setVerticalAlignment("top");
   clearRange.setWrap(true);
 
-  // 予約データ取得
-  const resData = resSh.getDataRange().getValues();
-  if (resData.length < 2) return;
+  // ===== 予約データ取得（必要列だけ） =====
+  const lastRow = resSh.getLastRow();
+  if (lastRow < 2) return;
 
-  const resHeader = resData[0].map(String);
-  const ridx = indexMap_(resHeader);
+  const header = resSh.getRange(1, 1, 1, resSh.getLastColumn()).getValues()[0].map(String);
+  const ridx = indexMap_(header);
   requiredCols_(ridx, ["reserved_start", "reserved_end", "status", "line_user_id"]);
 
-  // USERS名寄せ（CALENDARは ActiveSpreadsheet なので、同一SS前提なら getActiveSpreadsheet() でOK）
+  const n = lastRow - 1;
+
+  // 必須列
+  const colStatus = resSh.getRange(2, ridx.status + 1, n, 1).getValues();
+  const colStart  = resSh.getRange(2, ridx.reserved_start + 1, n, 1).getValues();
+  const colLineId = resSh.getRange(2, ridx.line_user_id + 1, n, 1).getValues();
+
+  // 任意列（スナップショット優先）
+  const hasNameSnap = ridx.name_snapshot !== undefined;
+  const colNameSnap = hasNameSnap ? resSh.getRange(2, ridx.name_snapshot + 1, n, 1).getValues() : null;
+
+  const hasPlanNamesSnap = ridx.plan_names_snapshot !== undefined;
+  const colPlanNamesSnap = hasPlanNamesSnap ? resSh.getRange(2, ridx.plan_names_snapshot + 1, n, 1).getValues() : null;
+
+  const hasPlanNameSnap = ridx.plan_name_snapshot !== undefined;
+  const colPlanNameSnap = (!hasPlanNamesSnap && hasPlanNameSnap)
+    ? resSh.getRange(2, ridx.plan_name_snapshot + 1, n, 1).getValues()
+    : null;
+
+  // USERS名寄せ（既存どおり）
   const userNameByLineId = buildUserNameMap_();
 
   /** @type {Record<string, string[]>} */
   const byDay = {};
 
-  for (let r = 1; r < resData.length; r++) {
-    const row = resData[r];
-    const status = String(row[ridx.status] || "");
+  for (let i = 0; i < n; i++) {
+    const status = String(colStatus[i][0] || "");
     if (status !== "CONFIRMED") continue;
 
-    const start = coerceToDate_(row[ridx.reserved_start]);
+    const start = coerceToDate_(colStart[i][0]);
     if (!start) continue;
 
     // 当月外は除外（開始日で判定）
@@ -116,16 +135,19 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
     const dayKey = formatYmd_(start); // YYYY-MM-DD
     const hhmm = formatHm_(start);
 
-    const lineUserId = String(row[ridx.line_user_id] || "");
-    const customer =
-      (ridx.name_snapshot !== undefined && String(row[ridx.name_snapshot] || "").trim())
-        ? String(row[ridx.name_snapshot]).trim()
-        : (userNameByLineId[lineUserId] || lineUserId || "（不明）");
+    const lineUserId = String(colLineId[i][0] || "").trim();
 
-    const planName =
-      (ridx.plan_names_snapshot !== undefined && String(row[ridx.plan_names_snapshot] || "").trim())
-        ? String(row[ridx.plan_names_snapshot]).trim()
-        : (ridx.plan_name_snapshot !== undefined ? String(row[ridx.plan_name_snapshot] || "").trim() : "");
+    const nameSnap = hasNameSnap ? String(colNameSnap[i][0] || "").trim() : "";
+    const customer = nameSnap
+      ? nameSnap
+      : (userNameByLineId[lineUserId] || lineUserId || "（不明）");
+
+    let planName = "";
+    if (hasPlanNamesSnap) {
+      planName = String(colPlanNamesSnap[i][0] || "").trim();
+    } else if (colPlanNameSnap) {
+      planName = String(colPlanNameSnap[i][0] || "").trim();
+    }
 
     const text = `${hhmm} ${customer}${planName ? " " + planName : ""}`.trim();
 
@@ -192,16 +214,24 @@ function formatHm_(d) {
 function buildUserNameMap_() {
   const sh = sh_(SHEET_USERS);
   if (!sh) return {};
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return {};
-  const header = values[0].map(String);
+
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return {};
+
+  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
   if (idx.line_user_id === undefined || idx.name === undefined) return {};
 
+  const n = lastRow - 1;
+
+  // 必要列だけ取得
+  const colLine = sh.getRange(2, idx.line_user_id + 1, n, 1).getValues();
+  const colName = sh.getRange(2, idx.name + 1, n, 1).getValues();
+
   const map = {};
-  for (let r = 1; r < values.length; r++) {
-    const lineId = String(values[r][idx.line_user_id] || '').trim();
-    const name = String(values[r][idx.name] || '').trim();
+  for (let i = 0; i < n; i++) {
+    const lineId = String(colLine[i][0] || '').trim();
+    const name   = String(colName[i][0] || '').trim();
     if (lineId && name) map[lineId] = name;
   }
   return map;
@@ -218,52 +248,70 @@ function doGet(e) {
 
     switch (action) {
       case 'plans':
-        return json_({ ok: true, plans: listPlans_() });
+        return cachedJson_(
+          `plans:${cacheVer_()}`,     // バスター込み
+          60 * 30,                   // 30分
+          () => ({ ok: true, plans: listPlans_() })
+        );
 
       case 'me': {
         const lineUserId = reqParam_(e, 'line_user_id');
-        const user = getUserByLineId_(lineUserId);
-        return json_({ ok: true, exists: !!user, user: user || null });
+        return cachedJson_(
+          `me:${cacheVer_()}:${lineUserId}`,
+          60 * 5, // 5分
+          () => {
+            const user = getUserByLineId_(lineUserId);
+            return ({ ok: true, exists: !!user, user: user || null });
+          }
+        );
       }
 
       case 'my_reservations': {
         const lineUserId = reqParam_(e, 'line_user_id');
         const status = (e.parameter.status || 'CONFIRMED').trim();
-        const list = listReservationsByUser_(lineUserId, status);
-        return json_({ ok: true, reservations: list });
+        return cachedJson_(
+          `myres:${cacheVer_()}:${lineUserId}:${status}`,
+          30, // 30秒
+          () => ({ ok: true, reservations: listReservationsByUser_(lineUserId, status) })
+        );
       }
 
       case 'availability': {
-        const date = reqParam_(e, 'date');        // "YYYY-MM-DD"
-        const planId = reqParam_(e, 'plan_id');   // "P001"
-        const result = getAvailability_(date, planId);
-        return json_({ ok: true, ...result });
+        const date = reqParam_(e, 'date');
+        const planId = reqParam_(e, 'plan_id');
+        return cachedJson_(
+          `av:${cacheVer_()}:${date}:${planId}`,
+          20, // 20秒
+          () => ({ ok:true, ...getAvailability_(date, planId) })
+        );
       }
 
       case 'availability_range': {
-        const from = reqParam_(e, 'from'); // "YYYY-MM-DD"
+        const from = reqParam_(e, 'from');
         const days = Number((e.parameter.days || '7').toString().trim());
-
-        // ★ 複数プラン時：duration_min を優先
-        const durationMinParam = (e.parameter.duration_min || '').toString().trim();
-        const planId = (e.parameter.plan_id || '').toString().trim(); // 旧互換
-
-        const durationMin = durationMinParam ? Number(durationMinParam) : null;
-
-        const result = getAvailabilityRangeByDuration_(from, days, planId, durationMin);
-        return json_({ ok: true, ...result });
-      }
-
-      case 'availability_range_materials': {
-        const from = reqParam_(e, 'from'); // YYYY-MM-DD
-        const days = Number((e.parameter.days || '7').toString().trim());
-
         const durationMinParam = (e.parameter.duration_min || '').toString().trim();
         const planId = (e.parameter.plan_id || '').toString().trim();
         const durationMin = durationMinParam ? Number(durationMinParam) : null;
 
-        const result = getAvailabilityRangeMaterialsByDuration_(from, days, planId, durationMin);
-        return json_({ ok: true, ...result });
+        return cachedJson_(
+          `avr:${cacheVer_()}:${from}:${days}:${durationMin||''}:${planId||''}`,
+          20, // 20秒
+          () => ({ ok:true, ...getAvailabilityRangeByDuration_(from, days, planId, durationMin) })
+        );
+      }
+
+      case 'availability_range_materials': {
+        const from = reqParam_(e, 'from');
+        const days = Number((e.parameter.days || '7').toString().trim());
+        const durationMinParam = (e.parameter.duration_min || '').toString().trim();
+        const planId = (e.parameter.plan_id || '').toString().trim();
+        const durationMin = durationMinParam ? Number(durationMinParam) : null;
+
+        return cachedJson_(
+          `arm:${cacheVer_()}:${from}:${days}:${durationMin||''}:${planId||''}`,
+          20, // 20秒
+          () => ({ ok:true, ...getAvailabilityRangeMaterialsByDuration_(from, days, planId, durationMin) })
+        );
       }
 
       default:
@@ -283,17 +331,27 @@ function doPost(e) {
     switch (action) {
       case 'users_upsert': {
         const user = upsertUser_(body);
+        bumpCacheVer_();                 // ★追加（ユーザー情報キャッシュ破棄）
         return json_({ ok: true, user });
       }
 
       case 'reserve': {
-        // 最終確定はロック下で実行
         const result = createReservation_(body);
+        bumpCacheVer_();
+
+        try { reservationDetailsUpdate(); } 
+        catch (err) { console.error('[reservationDetailsUpdate] failed:', err); }
+
         return json_({ ok: true, reservation: result });
       }
 
       case 'cancel': {
         const result = cancelReservation_(body);
+        bumpCacheVer_();
+
+        try { reservationDetailsUpdate(); } 
+        catch (err) { console.error('[reservationDetailsUpdate] failed:', err); }
+
         return json_({ ok: true, canceled: result });
       }
 
@@ -398,132 +456,158 @@ function getPlanById_(planId){
  * ========================= */
 function getUserByLineId_(lineUserId) {
   const sh = sh_(SHEET_USERS);
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return null;
+  if (!sh) return null;
 
-  const header = values[0].map(String);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return null;
+
+  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
+  if (idx.line_user_id === undefined) return null;
 
-  for (let r = 1; r < values.length; r++) {
-    const row = values[r];
-    if (String(row[idx.line_user_id]) === String(lineUserId)) {
-      return rowToObj_(header, row);
-    }
+  const n = lastRow - 1;
+
+  // まず line_user_id 列だけ取得して一致行を探す（1列だけなので速い）
+  const colLine = sh.getRange(2, idx.line_user_id + 1, n, 1).getValues();
+  let hitRow = -1; // 0-based in data area
+  for (let i = 0; i < n; i++) {
+    if (String(colLine[i][0]) === String(lineUserId)) { hitRow = i; break; }
   }
-  return null;
+  if (hitRow === -1) return null;
+
+  // ヒットした行だけ “その行全列” を取得（1行なので軽い）
+  const row = sh.getRange(hitRow + 2, 1, 1, header.length).getValues()[0];
+  return rowToObj_(header, row);
 }
 
 function upsertUser_(body) {
   const lineUserId = reqBody_(body, 'line_user_id');
-  const nickName = (body.nick_name || "").toString().trim(); // ★追加
+  const nickName = (body.nick_name || "").toString().trim();
   const name = reqBody_(body, 'name');
   const kana = reqBody_(body, 'kana');
-  const birthday = (body.birthday || "").toString().trim(); // ★追加 (YYYY-MM-DD想定)
+  const birthday = (body.birthday || "").toString().trim();
   const gender = reqBody_(body, 'gender');
 
-  // ★ allowed_gender チェック
-  const allowed = getAllowedGenders_(); // []なら全許可
+  // allowed_gender チェック
+  const allowed = getAllowedGenders_();
   if (!isGenderAllowed_(gender, allowed)) {
     const err = new Error("GENDER_NOT_ALLOWED");
-    err.allowed_genders = allowed; // doPostで返せるように
+    err.allowed_genders = allowed;
     throw err;
   }
 
-  // ★ここ重要：body.phone が数値で来ても文字列にする（先頭0維持）
-  // 例: 090-1234-5678 → "09012345678"
-  const phoneRaw = body.phone; // reqBody_を使わず、型を潰さない
+  // phone は数字だけにして文字列化（先頭0維持）
+  const phoneRaw = body.phone;
   const phone = String(phoneRaw ?? '').replace(/[^0-9]/g, '');
-
   const email = (body.email || '').trim();
 
   const now = new Date();
   const sh = sh_(SHEET_USERS);
-  const values = sh.getDataRange().getValues();
+  if (!sh) throw new Error(`Sheet not found: ${SHEET_USERS}`);
 
-  if (values.length === 0) throw new Error('USERS sheet is empty');
-  const header = values[0].map(String);
+  const lastRow = sh.getLastRow();
+
+  // header（1行だけ）
+  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
+  if (idx.line_user_id === undefined) throw new Error("USERS_MISSING_COLUMN_line_user_id");
 
-  // ★phone列の表示形式をテキストに固定（予防）
+  // phone列の表示形式をテキストに固定（予防）
   ensureUsersPhoneTextColumn_(sh, idx);
 
   const lock = LockService.getScriptLock();
   lock.tryLock(15000);
 
   try {
-    // 探す
+    // 既存行検索：line_user_id列だけ読む（全件 rowToObj しない）
     let targetRow = -1; // 1-based
-    for (let r = 1; r < values.length; r++) {
-      if (String(values[r][idx.line_user_id]) === String(lineUserId)) {
-        targetRow = r + 1;
-        break;
+    if (lastRow >= 2) {
+      const n = lastRow - 1;
+      const colLine = sh.getRange(2, idx.line_user_id + 1, n, 1).getValues();
+      for (let i = 0; i < n; i++) {
+        if (String(colLine[i][0]) === String(lineUserId)) {
+          targetRow = i + 2;
+          break;
+        }
       }
     }
 
+    // 書きたい値（列が無い場合もあるので idx を見て反映）
     const record = {
       line_user_id: lineUserId,
-      nick_name: nickName,   // ★追加
-      name, kana, gender,
-      birthday, // ★追加
-      phone, // ★文字列
+      nick_name: nickName,
+      name,
+      kana,
+      gender,
+      birthday,
+      phone,  // 書き込み時は ' を付ける
       email,
       is_active: true,
       updated_at: now,
     };
 
     if (targetRow === -1) {
-      // insert
+      // ===== insert =====
       record.created_at = now;
 
       const newRow = header.map(h => {
-        switch (h) {
+        const key = String(h || '').trim();
+        switch (key) {
           case 'line_user_id': return record.line_user_id;
-          case 'nick_name': return record.nick_name; // ★追加
-          case 'name': return record.name;
-          case 'kana': return record.kana;
-          case 'gender': return record.gender;
-          case 'birthday': return record.birthday; // ★追加
-
-          // ★ここが決定打：' を付けて Sheets に文字列として確定させる
-          case 'phone': return record.phone ? `'${record.phone}` : '';
-
-          case 'email': return record.email;
-          case 'created_at': return record.created_at;
-          case 'updated_at': return record.updated_at;
-          case 'is_active': return record.is_active;
-          default: return '';
+          case 'nick_name':    return record.nick_name;
+          case 'name':         return record.name;
+          case 'kana':         return record.kana;
+          case 'gender':       return record.gender;
+          case 'birthday':     return record.birthday;
+          case 'phone':        return record.phone ? `'${record.phone}` : '';
+          case 'email':        return record.email;
+          case 'created_at':   return record.created_at;
+          case 'updated_at':   return record.updated_at;
+          case 'is_active':    return record.is_active;
+          default:             return '';
         }
       });
 
       sh.appendRow(newRow);
 
-      // ★念押し：追加した行の phone セルもテキスト書式
+      // phoneセルもテキスト書式
       if (idx.phone !== undefined) {
-        const lastRow = sh.getLastRow();
-        sh.getRange(lastRow, idx.phone + 1).setNumberFormat('@');
+        const r = sh.getLastRow();
+        sh.getRange(r, idx.phone + 1).setNumberFormat('@');
       }
 
     } else {
-      // update（いったん行全体更新）
-      sh.getRange(targetRow, 1, 1, header.length).setValues([header.map(h => {
-        if (h === 'created_at') return sh.getRange(targetRow, idx.created_at + 1).getValue();
+      // ===== update =====
+      // 対象行1行だけ読む（ここはOK：1行だけ）
+      const row = sh.getRange(targetRow, 1, 1, header.length).getValues()[0];
 
-        // ★phoneだけは後で個別に書き込む（'付きで確定させるため）
-        if (h === 'phone') return sh.getRange(targetRow, idx.phone + 1).getValue();
+      // created_at は維持
+      // 各列が存在する場合だけ上書き
+      if (idx.nick_name !== undefined) row[idx.nick_name] = record.nick_name;
+      if (idx.name !== undefined)      row[idx.name] = record.name;
+      if (idx.kana !== undefined)      row[idx.kana] = record.kana;
+      if (idx.gender !== undefined)    row[idx.gender] = record.gender;
+      if (idx.birthday !== undefined)  row[idx.birthday] = record.birthday;
+      if (idx.email !== undefined)     row[idx.email] = record.email;
+      if (idx.is_active !== undefined) row[idx.is_active] = record.is_active;
+      if (idx.updated_at !== undefined)row[idx.updated_at] = record.updated_at;
 
-        if (h in record) return record[h];
-        return sh.getRange(targetRow, header.indexOf(h) + 1).getValue();
-      })]);
-
-      // ★phoneを個別に「テキスト」で上書き
+      // phone は「'付き + テキスト書式」で確定
       if (idx.phone !== undefined) {
-        const cell = sh.getRange(targetRow, idx.phone + 1);
-        cell.setNumberFormat('@');
-        cell.setValue(record.phone ? `'${record.phone}` : '');
+        row[idx.phone] = record.phone ? `'${record.phone}` : '';
+      }
+
+      // 1行だけ一括書き戻し
+      sh.getRange(targetRow, 1, 1, header.length).setValues([row]);
+
+      // phone列の表示形式を念押し
+      if (idx.phone !== undefined) {
+        sh.getRange(targetRow, idx.phone + 1).setNumberFormat('@');
       }
     }
 
     return getUserByLineId_(lineUserId);
+
   } finally {
     lock.releaseLock();
   }
@@ -546,34 +630,70 @@ function ensureUsersPhoneTextColumn_(usersSheet, idx) {
  * ========================= */
 function listReservationsByUser_(lineUserId, status) {
   const sh = sh_(SHEET_RESERVATIONS);
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return [];
+  if (!sh) throw new Error(`Sheet not found: ${SHEET_RESERVATIONS}`);
 
-  const header = values[0].map(String);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+
+  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
 
-  const out = [];
-  for (let r = 1; r < values.length; r++) {
-    const row = values[r];
-    if (String(row[idx.line_user_id]) !== String(lineUserId)) continue;
-    if (status && String(row[idx.status]) !== String(status)) continue;
+  requiredCols_(idx, ['line_user_id', 'status', 'reserved_start', 'reserved_end', 'reservation_id']);
 
-    // ✅ plan名は plan_names_snapshot を優先（無ければ plan_name_snapshot）
-    const planName =
-      (idx.plan_names_snapshot !== undefined && String(row[idx.plan_names_snapshot] || "").trim())
-        ? String(row[idx.plan_names_snapshot]).trim()
-        : (idx.plan_name_snapshot !== undefined ? String(row[idx.plan_name_snapshot] || "").trim() : "");
+  const n = lastRow - 1;
+
+  // 必要列だけ
+  const colLine   = sh.getRange(2, idx.line_user_id + 1, n, 1).getValues();
+  const colStatus = sh.getRange(2, idx.status + 1, n, 1).getValues();
+  const colStart  = sh.getRange(2, idx.reserved_start + 1, n, 1).getValues();
+  const colEnd    = sh.getRange(2, idx.reserved_end + 1, n, 1).getValues();
+  const colRid    = sh.getRange(2, idx.reservation_id + 1, n, 1).getValues();
+
+  // プラン名（スナップショット優先）
+  const hasPlanNames = idx.plan_names_snapshot !== undefined;
+  const colPlanNames = hasPlanNames ? sh.getRange(2, idx.plan_names_snapshot + 1, n, 1).getValues() : null;
+
+  // ★ 追加：所要時間・金額（スナップショット）
+  const hasDurSnap = idx.duration_min_snapshot !== undefined;
+  const colDurSnap = hasDurSnap ? sh.getRange(2, idx.duration_min_snapshot + 1, n, 1).getValues() : null;
+
+  const hasPriceSnap = idx.price_snapshot !== undefined;
+  const colPriceSnap = hasPriceSnap ? sh.getRange(2, idx.price_snapshot + 1, n, 1).getValues() : null;
+
+  // （任意）cancel_token も返したいなら
+  const hasCancelToken = idx.cancel_token !== undefined;
+  const colCancelToken = hasCancelToken ? sh.getRange(2, idx.cancel_token + 1, n, 1).getValues() : null;
+
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (String(colLine[i][0]) !== String(lineUserId)) continue;
+    if (status && String(colStatus[i][0]) !== String(status)) continue;
+
+    const start = colStart[i][0];
+    const end   = colEnd[i][0];
+
+    // フロントで使う“表示プラン名”は snapshot を優先
+    const planNames = hasPlanNames ? String(colPlanNames[i][0] || '').trim() : '';
+
+    // ★ NaN回避：数値化できない時は null にする
+    const durRaw = hasDurSnap ? colDurSnap[i][0] : null;
+    const priceRaw = hasPriceSnap ? colPriceSnap[i][0] : null;
+
+    const dur = (durRaw === null || durRaw === '' || durRaw === undefined) ? null : Number(durRaw);
+    const price = (priceRaw === null || priceRaw === '' || priceRaw === undefined) ? null : Number(priceRaw);
 
     out.push({
-      reservation_id: String(row[idx.reservation_id] || ""),
-      status: String(row[idx.status] || ""),
-      reserved_start: row[idx.reserved_start],
-      reserved_end: row[idx.reserved_end],
-      plan_id: String(row[idx.plan_id] || ""),
-      plan_name: planName, // ✅ここが重要
-      duration_min: (idx.duration_min_snapshot !== undefined) ? Number(row[idx.duration_min_snapshot] || 0) : 0,
-      price: (idx.price_snapshot !== undefined) ? Number(row[idx.price_snapshot] || 0) : 0,
-      cancel_token: String(row[idx.cancel_token] || "")
+      reservation_id: String(colRid[i][0] || ''),
+      status: String(colStatus[i][0] || ''),
+      reserved_start: start,
+      reserved_end: end,
+
+      // ★ ここが重要
+      plan_name: planNames,        // 既存UIが plan_name 参照ならここに入れる
+      duration_min: Number.isFinite(dur) ? dur : null,
+      price: Number.isFinite(price) ? price : null,
+
+      cancel_token: hasCancelToken ? String(colCancelToken[i][0] || '') : ''
     });
   }
 
@@ -844,25 +964,28 @@ function cancelReservation_(body) {
  * ========================= */
 function hasConflict_(startAt, endAt) {
   const sh = sh_(SHEET_RESERVATIONS);
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return false;
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return false;
 
-  const header = values[0].map(String);
+  const header = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
+  requiredCols_(idx, ['status','reserved_start','reserved_end']);
 
-  for (let r = 1; r < values.length; r++) {
-    const row = values[r];
-    if (String(row[idx.status]) !== 'CONFIRMED') continue;
+  const n = lastRow - 1;
+  const colStatus = sh.getRange(2, idx.status+1, n, 1).getValues();
+  const colStart  = sh.getRange(2, idx.reserved_start+1, n, 1).getValues();
+  const colEnd    = sh.getRange(2, idx.reserved_end+1, n, 1).getValues();
 
-    const s = coerceToDate_(row[idx.reserved_start]);
-    const e = coerceToDate_(row[idx.reserved_end]);
+  const a0 = startAt.getTime();
+  const a1 = endAt.getTime();
+
+  for (let i=0; i<n; i++){
+    if (String(colStatus[i][0]).trim() !== 'CONFIRMED') continue;
+    const s = coerceToDate_(colStart[i][0]);
+    const e = coerceToDate_(colEnd[i][0]);
     if (!s || !e) continue;
 
-    // ★ 半開区間 [startAt,endAt) と [s,e) の重複判定
-    // 境界一致（endAt == s / startAt == e）は重複扱いしない
-    if (startAt.getTime() < e.getTime() && endAt.getTime() > s.getTime()) {
-      return true;
-    }
+    if (a0 < e.getTime() && a1 > s.getTime()) return true;
   }
   return false;
 }
@@ -870,7 +993,11 @@ function hasConflict_(startAt, endAt) {
 /** =========================
  *  Helpers
  * ========================= */
-function ss_(){ return SpreadsheetApp.openById(SPREADSHEET_ID); }
+let SS_CACHE_ = null;
+function ss_(){
+  if (SS_CACHE_) return SS_CACHE_;
+  return (SS_CACHE_ = SpreadsheetApp.openById(SPREADSHEET_ID));
+}
 
 const SHEETS_ = {};
 function sh_(name){
@@ -897,6 +1024,34 @@ function reqParam_(e, key) {
   if (!v) throw new Error(`MISSING_PARAM_${key}`);
   return v;
 }
+
+/** =========================
+ *  Cache helpers
+ * ========================= */
+function cacheVer_(){
+  const p = PropertiesService.getScriptProperties();
+  return p.getProperty('CACHE_VER') || '1';
+}
+function bumpCacheVer_(){
+  const p = PropertiesService.getScriptProperties();
+  const v = Number(p.getProperty('CACHE_VER') || '1') + 1;
+  p.setProperty('CACHE_VER', String(v));
+}
+
+function cachedJson_(key, ttlSec, computeObjFn){
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get(key);
+  if (hit) {
+    return ContentService.createTextOutput(hit)
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  const obj = computeObjFn();
+  const text = JSON.stringify(obj);
+  cache.put(key, text, ttlSec);
+  return ContentService.createTextOutput(text)
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 
 function reqBody_(body, key) {
   const v = (body[key] ?? '').toString().trim();
@@ -969,54 +1124,56 @@ function getAvailability_(dateYmd, planId) {
   const plan = getPlanById_(planId);
   if (!plan || !plan.is_active) throw new Error('PLAN_NOT_FOUND_OR_INACTIVE');
 
-  const dayStart = parseYmdAsLocalDate_(dateYmd); // 00:00
-  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const durationMin = Number(plan.duration_min);
+  const fromStart = parseYmdAsLocalDate_(dateYmd);
+  const rangeEnd = new Date(fromStart.getTime() + 24 * 60 * 60 * 1000);
 
-  const granMin = getGranularityMinutes_(); // CONFIGから取得（なければ30）
-  const now = new Date();
-  const minStart = new Date(now.getTime() + granMin * 60 * 1000);
-  const requiredMs = Number(plan.duration_min) * 60 * 1000;
+  // materials（1日分）
+  const mats = getAvailabilityRangeMaterialsByDuration_(dateYmd, 1, planId, durationMin);
 
-  // その日に有効な「受付可能な時間帯（ウィンドウ）」をSLOTSから取得
-  const windows = listOpenWindowsForDate_(dayStart, dayEnd);
+  // mats を元にサーバで available を作る（フロントで作るなら返さなくてもOK）
+  const granMin = mats.granularity_min;
+  const requiredMs = durationMin * 60 * 1000;
 
-  // ブラックアウト（受付不可）も適用する（既に実装済みならそれを利用）
-  const blackouts = listBlackoutsOverlapping_(dayStart, dayEnd);
+  const windows = mats.windows_by_date[dateYmd] || [];
+  const busy = mats.busy_by_date[dateYmd] || [];
+  const minStartMin = mats.min_start_min_by_date[dateYmd]; // 今日だけ数値、それ以外 null
 
   const available = [];
 
+  // [startMin,endMin) の window 内で gran ごとに候補を作り、busy と重なるものを除外
   for (const w of windows) {
-    // day範囲で切る
-    const wStart = new Date(Math.max(w.from.getTime(), dayStart.getTime()));
-    const wEnd = new Date(Math.min(w.to.getTime(), dayEnd.getTime()));
+    const w0 = w[0], w1 = w[1];
+    for (let tMin = ceilMinToGran_(w0, granMin); (tMin * 60000 + requiredMs) <= w1 * 60000; tMin += granMin) {
+      if (minStartMin !== null && tMin <= minStartMin) continue;
+      const endMin = tMin + Math.round(requiredMs / 60000);
 
-    // その日の営業時間開始をアンカーにする（00/30に揃ってなくてもOK）
-    const bh = getBusinessHours_();
-    const anchor = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate(), bh.oh, bh.om, 0, 0);
+      if (isOverlappingMinutes_(tMin, endMin, busy)) continue;
 
-    // 粒度に合わせて開始候補を生成（アンカー基準）
-    for (let t = ceilToGranFromAnchor_(wStart, anchor, granMin).getTime(); t + requiredMs <= wEnd.getTime(); t += granMin * 60 * 1000) {
-      const startAt = new Date(t);
-      const endAt = new Date(t + requiredMs);
-
-      // ブラックアウト
-      if (isInBlackout_(startAt, endAt, blackouts)) continue;
-
-      // 同時予約なし（既存予約と重なれば不可）
-      if (hasConflict_(startAt, endAt)) continue;
-
-      // 現在 + granularity_min より過去日時は除外
-      if (startAt.getTime() <= minStart.getTime()) continue;
-      available.push(toIsoWithOffset_(startAt));
+      const dt = new Date(fromStart.getFullYear(), fromStart.getMonth(), fromStart.getDate(), 0, 0, 0, 0);
+      dt.setMinutes(tMin);
+      available.push(toIsoWithOffset_(dt));
     }
   }
 
-  // 重複除去＆ソート
-  const uniq = Array.from(new Set(available)).sort();
   return {
-    available: uniq,
-    slot_source_hint: `SLOTSの期間から生成（粒度: ${granMin}分）/ BLACKOUTS適用`
+    available: Array.from(new Set(available)).sort(),
+    slot_source_hint: 'materials（windows/busy）から生成'
   };
+}
+
+// minutesの重なり判定（busyは [[s,e],...]）
+function isOverlappingMinutes_(s, e, busyIntervals){
+  for (const b of busyIntervals) {
+    const b0 = b[0], b1 = b[1];
+    // 半開区間 [s,e) と [b0,b1)
+    if (s < b1 && e > b0) return true;
+  }
+  return false;
+}
+
+function ceilMinToGran_(min, gran){
+  return Math.ceil(min / gran) * gran;
 }
 
 /**
@@ -1319,29 +1476,40 @@ function toIsoWithOffset_(date) {
  */
 function listConfirmedReservationsOverlapping_(rangeStart, rangeEnd) {
   const sh = sh_(SHEET_RESERVATIONS);
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return [];
+  if (!sh) throw new Error(`Sheet not found: ${SHEET_RESERVATIONS}`);
 
-  const header = values[0].map(String);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+
+  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
 
-  // 必須列チェック（無いと落ちるので明示）
+  // 必須列
   const requiredCols = ['status', 'reserved_start', 'reserved_end'];
   for (const c of requiredCols) {
     if (idx[c] === undefined) throw new Error(`RESERVATIONS_MISSING_COLUMN_${c}`);
   }
 
-  const out = [];
-  for (let r = 1; r < values.length; r++) {
-    const row = values[r];
-    if (String(row[idx.status]) !== 'CONFIRMED') continue;
+  const n = lastRow - 1;
 
-    const s = coerceToDate_(row[idx.reserved_start]);
-    const e = coerceToDate_(row[idx.reserved_end]);
+  // 必要列だけ取得
+  const colStatus = sh.getRange(2, idx.status + 1, n, 1).getValues();
+  const colStart  = sh.getRange(2, idx.reserved_start + 1, n, 1).getValues();
+  const colEnd    = sh.getRange(2, idx.reserved_end + 1, n, 1).getValues();
+
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    if (String(colStatus[i][0] || '').trim() !== 'CONFIRMED') continue;
+
+    const s = coerceToDate_(colStart[i][0]);
+    const e = coerceToDate_(colEnd[i][0]);
     if (!s || !e) continue;
 
     if (s < rangeEnd && e > rangeStart) out.push({ s, e });
   }
+
+  // （任意）少し速くしたいなら startでソート
+  out.sort((a, b) => a.s.getTime() - b.s.getTime());
   return out;
 }
 
@@ -1625,17 +1793,24 @@ function refreshTodayReservations() {
 function buildUserPhoneMap_() {
   const sh = sh_(SHEET_USERS);
   if (!sh) return {};
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return {};
-  const header = values[0].map(String);
-  const idx = indexMap_(header);
 
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return {};
+
+  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const idx = indexMap_(header);
   if (idx.line_user_id === undefined || idx.phone === undefined) return {};
 
+  const n = lastRow - 1;
+
+  // 必要列だけ取得
+  const colLine  = sh.getRange(2, idx.line_user_id + 1, n, 1).getValues();
+  const colPhone = sh.getRange(2, idx.phone + 1, n, 1).getValues();
+
   const map = {};
-  for (let r = 1; r < values.length; r++) {
-    const lineId = String(values[r][idx.line_user_id] || '').trim();
-    const phone = String(values[r][idx.phone] || '').trim();
+  for (let i = 0; i < n; i++) {
+    const lineId = String(colLine[i][0] || '').trim();
+    const phone  = String(colPhone[i][0] || '').trim();
     if (lineId && phone) map[lineId] = phone;
   }
   return map;
@@ -2488,8 +2663,16 @@ function ceilToGran_(min, gran) {
  * ========================= */
 
 function reservationDetailsUpdate(){
-  refreshTodayReservations();
-  renderTodayGanttChart();
-  renderReservationCalendar();
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {   // 1秒で取れなければスキップ
+    console.log('[reservationDetailsUpdate] skipped (lock busy)');
+    return;
+  }
+  try {
+    refreshTodayReservations();
+    renderTodayGanttChart();
+    renderReservationCalendar();
+  } finally {
+    lock.releaseLock();
+  }
 }
-
