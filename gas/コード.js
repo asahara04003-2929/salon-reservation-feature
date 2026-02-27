@@ -32,6 +32,8 @@ function onOpen() {
     .addSeparator()
     .addItem('本日予約更新', 'refreshTodayReservations') // ★追加
     .addSeparator()
+    .addItem('予約カレンダー', 'renderReservationCalendar') // ★追加
+    .addSeparator()
     .addItem('祝日情報取得', 'syncJapaneseHolidaysToBlackouts') // ★追加
     .addToUi();
 }
@@ -1589,45 +1591,50 @@ function refreshTodayReservations() {
   const wsRes = ss.getSheetByName(SHEET_RES);
   if (!wsRes) throw new Error(`Sheet not found: ${SHEET_RES}`);
 
-  // TODAYシート（なければ作る）
   let wsToday = ss.getSheetByName(SHEET_TODAY);
   if (!wsToday) wsToday = ss.insertSheet(SHEET_TODAY);
 
-  // ヘッダ作り直し（★終了・電話追加）
+  const tz = "Asia/Tokyo";
   wsToday.clear();
-  wsToday.getRange(1, 1, 1, 8).setValues([[
-    "開始", "終了", "顧客名", "電話番号", "プラン", "ステータス", "予約ID", "LINE_ID"
+
+  // A1 に本日の日付（フォント20）
+  // A1 に本日の日付（フォント20）
+  const todayStr = Utilities.formatDate(new Date(), tz, "yyyy/MM/dd");
+  wsToday.getRange("A1").setValue(todayStr).setFontSize(20).setFontWeight("bold");
+  // 見栄え：1行目を横に広げて中央寄せ（列数は出力列に合わせて I まで）
+  wsToday.getRange("A1:I1").merge().setHorizontalAlignment("left").setVerticalAlignment("middle");
+
+  // ヘッダ（2行目）
+  wsToday.getRange(2, 1, 1, 9).setValues([[
+    "開始", "終了", "顧客名", "電話番号", "プラン", "ステータス", "要望", "予約ID", "LINE_ID"
   ]]);
-  wsToday.setFrozenRows(1);
+  wsToday.setFrozenRows(2);
 
   const values = wsRes.getDataRange().getValues();
   if (values.length < 2) {
-    wsToday.getRange(2, 1).setValue("予約データがありません。");
+    wsToday.getRange(3, 1).setValue("予約データがありません。");
     return;
   }
 
   const header = values[0].map(v => String(v).trim());
   const idx = indexMap_(header);
 
-  // 必須列（★reserved_end追加）
   requiredCols_(idx, ['reserved_start', 'reserved_end', 'status', 'line_user_id', 'reservation_id']);
 
-  // 任意列（あれば使う）
   const hasPlanNames = idx.plan_names_snapshot !== undefined;
-  const hasNameSnap = idx.name_snapshot !== undefined;
+  const hasNameSnap  = idx.name_snapshot !== undefined;
+  const hasNote      = idx.note !== undefined;
 
-  // USERSの名前/電話マップ
-  const userNameByLineId = buildUserNameMap_(ss);
+  const userNameByLineId  = buildUserNameMap_(ss);
   const userPhoneByLineId = buildUserPhoneMap_(ss);
 
   // 今日（JST）範囲
-  const tz = "Asia/Tokyo";
   const now = new Date();
   const y = Number(Utilities.formatDate(now, tz, "yyyy"));
   const m = Number(Utilities.formatDate(now, tz, "MM")) - 1;
   const d = Number(Utilities.formatDate(now, tz, "dd"));
   const start = new Date(y, m, d, 0, 0, 0, 0);
-  const end = new Date(y, m, d + 1, 0, 0, 0, 0);
+  const end   = new Date(y, m, d + 1, 0, 0, 0, 0);
 
   const rows = [];
 
@@ -1635,55 +1642,73 @@ function refreshTodayReservations() {
     const row = values[r];
 
     const status = String(row[idx.status] || '').trim();
-    if (status !== "CONFIRMED") continue;
+    if (status === "CANCELED") continue;
 
     const startAt = coerceToDate_(row[idx.reserved_start]);
-    const endAt = coerceToDate_(row[idx.reserved_end]);
+    const endAt   = coerceToDate_(row[idx.reserved_end]);
     if (!startAt || !endAt) continue;
-
     if (startAt < start || startAt >= end) continue;
 
     const lineId = String(row[idx.line_user_id] || '').trim();
-    const rid = String(row[idx.reservation_id] || '').trim();
+    const rid    = String(row[idx.reservation_id] || '').trim();
 
     const customer =
       (hasNameSnap && String(row[idx.name_snapshot] || '').trim())
         ? String(row[idx.name_snapshot]).trim()
         : (userNameByLineId[lineId] || lineId || "（不明）");
 
-    const phone = userPhoneByLineId[lineId] || "";
+    // ★電話番号は必ず文字列化して先頭0を保持
+    const rawPhone = userPhoneByLineId[lineId] ?? "";
+    const phone = rawPhone === "" ? "" : String(rawPhone).trim();
 
     const planNames =
       (hasPlanNames && String(row[idx.plan_names_snapshot] || '').trim())
         ? String(row[idx.plan_names_snapshot]).trim()
         : "";
 
+    const note =
+      (hasNote && String(row[idx.note] || '').trim())
+        ? String(row[idx.note]).trim()
+        : "";
+
     rows.push([
       Utilities.formatDate(startAt, tz, "HH:mm"),
-      Utilities.formatDate(endAt, tz, "HH:mm"),
+      Utilities.formatDate(endAt,   tz, "HH:mm"),
       customer,
       phone,
       planNames,
       status,
+      note,
       rid,
       lineId,
-      startAt.getTime() // ソート用
+      startAt.getTime()
     ]);
   }
 
-  // 時刻順
-  rows.sort((a, b) => a[8] - b[8]);
+  rows.sort((a, b) => a[9] - b[9]);
 
   if (rows.length === 0) {
-    wsToday.getRange(2, 1).setValue("本日の予約はありません。");
+    wsToday.getRange(3, 1).setValue("本日の予約はありません。");
     return;
   }
 
-  // 書き込み（ソート用の最後列は捨てる）
-  wsToday.getRange(2, 1, rows.length, 8).setValues(rows.map(r => r.slice(0, 8)));
-  wsToday.autoResizeColumns(1, 8);
+  wsToday.getRange(3, 1, rows.length, 9).setValues(rows.map(r => r.slice(0, 9)));
 
-  wsToday.getRange("J1").setValue(`更新: ${Utilities.formatDate(new Date(), tz, "yyyy/MM/dd HH:mm:ss")}`);
+  // ★電話番号列(D列)を「プレーンテキスト」にして表示上も0落ちを防ぐ
+  wsToday.getRange(3, 4, rows.length, 1).setNumberFormat("@");
+
+  // ===== 列幅（px）を固定 =====
+  wsToday.setColumnWidths(1, 2, 60);   // A:開始  B:終了
+  wsToday.setColumnWidth(3, 120);      // C:顧客名
+  wsToday.setColumnWidth(4, 100);      // D:電話番号
+  wsToday.setColumnWidth(5, 200);      // E:プラン
+  wsToday.setColumnWidth(6, 100);      // F:ステータス
+  wsToday.setColumnWidth(7, 500);      // G:要望
+  wsToday.setColumnWidth(8, 170);      // H:予約ID
+  wsToday.setColumnWidth(9, 260);      // I:LINE_ID
+  // ===========================
+
+  wsToday.getRange("K1").setValue(`更新: ${Utilities.formatDate(new Date(), tz, "yyyy/MM/dd HH:mm:ss")}`);
 }
 
 function buildUserPhoneMap_(ss) {
@@ -2345,3 +2370,13 @@ function getAdminLineUserId_() {
   const cfg = getConfigMap_();
   return String(cfg.admin_line_user_id || "").trim();
 }
+
+/** =========================
+ *  バッチ処理（定期事項）
+ * ========================= */
+
+function reservationDetailsUpdate(){
+  refreshTodayReservations();
+  renderReservationCalendar();
+}
+
