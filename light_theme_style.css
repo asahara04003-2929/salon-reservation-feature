@@ -556,3 +556,17 @@ a{ color:inherit; }
   color: rgba(148,163,184,.85);
   pointer-events: none;
 }
+
+
+/* placeholder を少し薄く（全input/textarea共通） */
+/* placeholder を少し薄く（全input/textarea共通） */
+input::placeholder,
+textarea::placeholder {
+  opacity: 0.4;
+}
+
+/* Safari 対策（任意だけど入れておくと安心） */
+input::-webkit-input-placeholder,
+textarea::-webkit-input-placeholder {
+  opacity: 0.4;
+}
