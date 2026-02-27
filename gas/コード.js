@@ -2077,6 +2077,9 @@ function syncJapaneseHolidaysToBlackouts() {
   // ---- 追加行を作る（既存ならスキップ）
   const rowsToAppend = [];
   for (const ev of events) {
+    // ✅「祝日」の説明のイベントだけを対象にする
+    if (String(ev.getDescription() || "").trim() !== "祝日") continue;
+
     const d = ev.getStartTime();
     const key = Utilities.formatDate(d, tz, "yyyy/MM/dd");
 
