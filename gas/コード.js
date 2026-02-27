@@ -615,6 +615,9 @@ function createReservation_(body) {
   // ★追加：ペナルティならここで予約不可
   assertNotPenalized_(lineUserId);
 
+  // ✅追加：note（任意）
+  const note = (body.note ?? "").toString().trim().slice(0, 500);
+
   // ★複数対応：plan_ids（配列）優先、無ければ旧plan_id互換
   let planIds = body.plan_ids;
   if (Array.isArray(planIds) && planIds.length > 0) {
@@ -699,7 +702,7 @@ function createReservation_(body) {
       plan_names_snapshot: planNames,
       duration_min_snapshot: totalDuration,
       price_snapshot: totalPrice,
-
+      note: note, // ✅追加
       created_at: now,
       canceled_at: '',
       cancel_token: cancelToken,
@@ -729,7 +732,6 @@ function createReservation_(body) {
       const startStr = Utilities.formatDate(startAt, tz, "yyyy/MM/dd HH:mm");
       const endStr   = Utilities.formatDate(endAt, tz, "HH:mm");
       
-
       pushLineMessage_(lineUserId,
         "✅ 予約が確定しました\n" +
         `日時：${startStr} - ${endStr}\n` +
@@ -1719,7 +1721,8 @@ function sendAdminMailOnReserve_(reservation, user, planNames, priceStr) {
     予約ID: ${reservation.reservation_id}
     日時: ${start} - ${end}
     プラン: ${planNames}
-    料金： ${priceStr}円
+    料金: ${priceStr}円
+    要望: ${note || ""}
 
     顧客:
       ニックネーム: ${user.nick_name || ""}
@@ -1758,7 +1761,7 @@ function sendAdminMailOnCancel_(reservation, user, planNames, priceStr) {
 予約ID: ${reservation.reservation_id}
 日時: ${start} - ${end}
 プラン: ${planNames}
-料金： ${priceStr}円
+料金: ${priceStr}円
 
 顧客:
   ニックネーム: ${user.nick_name || ""}

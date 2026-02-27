@@ -97,6 +97,7 @@ const state = {
 
   selectedStartAt: null,
   lastReservation: null,
+  note: "", // ✅追加（任意）
 };
 
 
@@ -203,6 +204,10 @@ function wireEvents() {
     state.totalDurationMin = 0;
     state.totalPrice = 0;
     state.selectedStartAt = null;
+    state.note = ""; // ✅追加
+
+    // ✅ textareaもクリア
+    if ($("noteInput")) $("noteInput").value = "";
 
     // テーブルを初期化
     $("timeTableHead") && ($("timeTableHead").innerHTML = "");
@@ -527,6 +532,10 @@ async function reserve() {
     return;
   }
 
+  // ✅追加：note取得（任意）
+  const note = String($("noteInput")?.value || "").trim();
+  state.note = note;
+
   setStatus("予約確定中…");
 
   try {
@@ -535,6 +544,7 @@ async function reserve() {
       line_user_id: state.lineUserId,
       plan_ids: state.selectedPlans.map(p => p.plan_id),
       start_at: state.selectedStartAt,
+      note: note, // ✅追加：note取得（任意）
     });
 
     if (!r.ok) {

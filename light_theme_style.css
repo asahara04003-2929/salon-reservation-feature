@@ -570,3 +570,10 @@ input::-webkit-input-placeholder,
 textarea::-webkit-input-placeholder {
   opacity: 0.4;
 }
+
+/* ✅ 追加：textareaの見た目 */
+#noteInput{
+  min-height: 110px;
+  resize: vertical; /* 好みで none でもOK */
+  line-height: 1.5;
+}
