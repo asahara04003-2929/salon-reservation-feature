@@ -1596,7 +1596,6 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
     if (!plan || !plan.is_active) throw new Error('PLAN_NOT_FOUND_OR_INACTIVE');
     durationMin = Number(plan.duration_min);
   }
-
   if (!Number.isFinite(durationMin) || durationMin <= 0) throw new Error('INVALID_duration_min');
 
   const nDays = Number.isFinite(days) && days > 0 && days <= 14 ? Math.floor(days) : 7;
@@ -1607,10 +1606,11 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
   const granMin = getGranularityMinutes_();
   const requiredMs = durationMin * 60 * 1000;
 
-  // ★追加（ここ！）
   const tz = "Asia/Tokyo";
   const now = new Date();
-  const minStart = new Date(now.getTime() + granMin * 60 * 1000);
+
+  // ✅ しきい値：現在日時 + granularity_min
+  const threshold = new Date(now.getTime() + granMin * 60 * 1000);
 
   const confirmed = listConfirmedReservationsOverlapping_(fromStart, rangeEnd);
   const blackouts = listBlackoutsOverlapping_(fromStart, rangeEnd);
@@ -1618,30 +1618,37 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
   const bh = (typeof getBusinessHours_ === 'function') ? getBusinessHours_() : { openStr: '09:00', closeStr: '18:00' };
 
   const byDate = {};
+
   for (let i = 0; i < nDays; i++) {
     const dayStart = new Date(fromStart.getTime() + i * 24 * 60 * 60 * 1000);
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const dateKey = formatYmd_(dayStart);
+    const dayEnd   = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+    const dateKey  = formatYmd_(dayStart);
+
+    // ✅ その日の終わり(=翌日0:00)が threshold 以下なら「完全に過去日」扱いで空
+    if (dayEnd.getTime() <= threshold.getTime()) {
+      byDate[dateKey] = [];
+      continue;
+    }
 
     const windows = listOpenWindowsForDate_(dayStart, dayEnd);
     const available = [];
-    const isToday = (dateKey === Utilities.formatDate(new Date(), "Asia/Tokyo", "yyyy-MM-dd"));
 
     for (const w of windows) {
       const wStart = new Date(Math.max(w.from.getTime(), dayStart.getTime()));
-      const wEnd = new Date(Math.min(w.to.getTime(), dayEnd.getTime()));
+      const wEnd   = new Date(Math.min(w.to.getTime(), dayEnd.getTime()));
 
-      const bh = getBusinessHours_();
-      const anchor = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate(), bh.oh, bh.om, 0, 0);
+      const bh2 = getBusinessHours_();
+      const anchor = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate(), bh2.oh, bh2.om, 0, 0);
 
       for (let t = ceilToGranFromAnchor_(wStart, anchor, granMin).getTime(); t + requiredMs <= wEnd.getTime(); t += granMin * 60 * 1000) {
-
         const startAt = new Date(t);
-        const endAt = new Date(t + requiredMs);
+        const endAt   = new Date(t + requiredMs);
+
+        // ✅ しきい値以前は不可（過去扱い）
+        if (startAt.getTime() <= threshold.getTime()) continue;
 
         if (isInBlackout_(startAt, endAt, blackouts)) continue;
         if (hasConflictInList_(startAt, endAt, confirmed)) continue;
-        if (startAt.getTime() <= minStart.getTime()) continue;
 
         available.push(toIsoWithOffset_(startAt));
       }
@@ -2121,19 +2128,20 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
   const nDays = Number.isFinite(days) && days > 0 && days <= 14 ? Math.floor(days) : 7;
 
   // range
-  const fromStart = parseYmdAsLocalDate_(fromYmd); // local 00:00
+  const fromStart = parseYmdAsLocalDate_(fromYmd);
   const rangeEnd = new Date(fromStart.getTime() + nDays * 24 * 60 * 60 * 1000);
 
   const granMin = getGranularityMinutes_();
   const bh = getBusinessHours_();
 
-  // minStart: 今日だけ制限 (now + gran)
   const now = new Date();
-  const minStart = new Date(now.getTime() + granMin * 60 * 1000);
-  const todayKey = Utilities.formatDate(now, tz, "yyyy-MM-dd");
-  const minStartMinToday = minutesOfDay_(minStart);
 
-  // ---- 一括で素材を作る（ここが重要）
+  // ✅ しきい値：現在日時 + granularity_min
+  const threshold = new Date(now.getTime() + granMin * 60 * 1000);
+  const thresholdKey = Utilities.formatDate(threshold, tz, "yyyy-MM-dd");
+  const thresholdMin = minutesOfDay_(threshold);
+
+  // ---- 素材を作る
   const windowsByDate = buildOpenWindowsByDate_(fromStart, rangeEnd, bh);
   const busyByDateConfirmed = buildConfirmedBusyByDate_(fromStart, rangeEnd);
   const busyByDateBlackouts = buildBlackoutsBusyByDate_(fromStart, rangeEnd);
@@ -2149,12 +2157,23 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
     busyByDate[key] = mergeIntervals_(a.concat(b));
   }
 
-  // min_start_min_by_date（今日だけ設定、他はnull）
+  // ✅ 過去日（threshold基準）なら windows を空にする
+  for (let i = 0; i < nDays; i++) {
+    const dayStart = new Date(fromStart.getTime() + i * 86400000);
+    const dayEnd   = new Date(dayStart.getTime() + 86400000);
+    const key = formatYmd_(dayStart);
+
+    if (dayEnd.getTime() <= threshold.getTime()) {
+      windowsByDate[key] = [];
+    }
+  }
+
+  // ✅ min_start_min_by_date：threshold が属する日だけ設定（跨ぎ対応）
   const minStartMinByDate = {};
   for (let i = 0; i < nDays; i++) {
     const d0 = new Date(fromStart.getTime() + i * 86400000);
     const key = formatYmd_(d0);
-    minStartMinByDate[key] = (key === todayKey) ? minStartMinToday : null;
+    minStartMinByDate[key] = (key === thresholdKey) ? thresholdMin : null;
   }
 
   return {
@@ -2164,10 +2183,8 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
     required_duration_min: durationMin,
     business_open: bh.openStr,
     business_close: bh.closeStr,
-
-    // B案の素材
-    windows_by_date: windowsByDate,  // {YYYY-MM-DD: [[startMin,endMin], ...]}
-    busy_by_date: busyByDate,        // {YYYY-MM-DD: [[startMin,endMin], ...]}
+    windows_by_date: windowsByDate,
+    busy_by_date: busyByDate,
     min_start_min_by_date: minStartMinByDate
   };
 }
