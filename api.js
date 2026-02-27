@@ -537,8 +537,13 @@ async function reserve() {
       start_at: state.selectedStartAt,
     });
 
-    if (!r.ok) throw new Error(r.error || "reserve_failed");
-
+    if (!r.ok) {
+      if (r?.error === "PENALTY" || r?.code === "PENALTY") {
+        await showPenaltyBlocked(r.admin_phone); // await推奨
+        return; // ←重要：ここで止める
+      }
+      throw new Error(r.error || "reserve_failed");
+    }
     state.lastReservation = r.reservation;
 
     $("doneBox").innerHTML = `
@@ -632,7 +637,7 @@ async function cancelReservation(cancelToken) {
       if (r.error === "SAME_DAY_CANCEL_NOT_ALLOWED") {
         const phone = r.admin_phone || "";
         const msg = `当日のキャンセルについては、${phone}へご連絡ください。`;
-        const msgHtml = `当日のキャンセルについては、以下電話番号に直接ご連絡ください。<br><br>電話番号：${escHtml(phone)}`;
+        const msgHtml = `当日のキャンセルについては、下記電話番号に直接ご連絡ください。<br><br>電話番号：${escHtml(phone)}`;
 
         setStatus("当日のキャンセルは承っておりません。");
         setError(msg);         // ページ内にも残す（任意）
@@ -1142,4 +1147,20 @@ function initDobPicker(){
   modal.addEventListener("click", (e) => {
     if (e.target === modal) closePicker();
   });
+}
+
+// ペナルティ表示
+function showPenaltyBlocked(adminPhone){
+  const phone = adminPhone || "";
+  const msgHtml = `予約システムからの予約受付ができませんので、LINE公式アカウントにて連絡いただく、もしくは下記電話番号に直接連絡をお願いします。<br>電話番号：${escapeHtml(phone)}`;
+  popupSameDayCancel(phone, msgHtml, "予約不可")
+}
+
+function escapeHtml(s){
+  return String(s ?? "")
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#39;");
 }

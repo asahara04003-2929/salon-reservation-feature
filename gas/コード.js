@@ -612,6 +612,9 @@ function listReservationsByUser_(lineUserId, status) {
 function createReservation_(body) {
   const lineUserId = reqBody_(body, 'line_user_id');
 
+  // ★追加：ペナルティならここで予約不可
+  assertNotPenalized_(lineUserId);
+
   // ★複数対応：plan_ids（配列）優先、無ければ旧plan_id互換
   let planIds = body.plan_ids;
   if (Array.isArray(planIds) && planIds.length > 0) {
@@ -938,6 +941,24 @@ function genReservationId_() {
 function genToken_() {
   // 簡易UUID風
   return Utilities.getUuid();
+}
+
+
+/**
+ * USERS.penalty_flg が TRUE なら予約不可
+ * - admin_phone は CONFIG.admin_phone を返す（既存 getAdminPhone_ を使用）
+ * - doPost catch が err.admin_phone を返す仕様に合わせる
+ */
+function assertNotPenalized_(lineUserId) {
+  const user = getUserByLineId_(lineUserId); // 既存（USERSを読む）
+  if (!user) return; // 未登録は既存仕様（USER_NOT_REGISTERED）で落ちるのでここでは何もしない
+
+  const penalty = String(user.penalty_flg ?? "").toUpperCase() === "TRUE";
+  if (penalty) {
+    const err = new Error("PENALTY");
+    err.admin_phone = getAdminPhone_(); // 既存（CONFIGから取得）
+    throw err;
+  }
 }
 
 
