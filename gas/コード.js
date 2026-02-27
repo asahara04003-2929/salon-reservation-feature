@@ -7,7 +7,6 @@ const SPREADSHEET_ID = '1gBiXUNrYO_kloeI4zIiEqlGiZn8G2BkSs3VcIAYeXjU';
 // シート名定義
 const SHEET_PLAN = 'PLAN_MASTER';
 const SHEET_USERS = 'USERS';
-const SHEET_RES = 'RESERVATIONS';
 const SHEET_RESERVATIONS = 'RESERVATIONS';
 const SHEET_CALENDAR = 'CALENDAR'; // ←あなたのカレンダー表示用シート名に合わせて変えてOK
 const SHEET_TODAY = "TODAY";
@@ -48,9 +47,8 @@ function onOpen() {
  * 今月 + 来月 を RESERVATIONS からカレンダーに描画（C1は使わない）
  */
 function renderReservationCalendar() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const calSh = ss.getSheetByName(SHEET_CALENDAR);
-  const resSh = ss.getSheetByName(SHEET_RESERVATIONS);
+  const calSh = sh_(SHEET_CALENDAR);
+  const resSh = sh_(SHEET_RESERVATIONS);
   if (!calSh) throw new Error(`Sheet not found: ${SHEET_CALENDAR}`);
   if (!resSh) throw new Error(`Sheet not found: ${SHEET_RESERVATIONS}`);
 
@@ -61,7 +59,7 @@ function renderReservationCalendar() {
   const m = Number(Utilities.formatDate(now, tz, "MM")); // 1-12
 
   // 今月・来月を描画
-   renderOneMonthCalendar_(calSh, resSh, y, m, CAL_THIS_START_ROW, CAL_THIS_TITLE_CELL);
+  renderOneMonthCalendar_(calSh, resSh, y, m, CAL_THIS_START_ROW, CAL_THIS_TITLE_CELL);
   const next = addMonth_(y, m, 1); // {year, month}
   renderOneMonthCalendar_(calSh, resSh, next.year, next.month, CAL_NEXT_START_ROW, CAL_NEXT_TITLE_CELL);
 }
@@ -99,8 +97,7 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
   requiredCols_(ridx, ["reserved_start", "reserved_end", "status", "line_user_id"]);
 
   // USERS名寄せ（CALENDARは ActiveSpreadsheet なので、同一SS前提なら getActiveSpreadsheet() でOK）
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const userNameByLineId = buildUserNameMap_(ss);
+  const userNameByLineId = buildUserNameMap_();
 
   /** @type {Record<string, string[]>} */
   const byDay = {};
@@ -185,30 +182,6 @@ function requiredCols_(idx, cols) {
   });
 }
 
-function coerceToDate_(v) {
-  if (!v && v !== 0) return null;
-  if (Object.prototype.toString.call(v) === '[object Date]') {
-    return isNaN(v.getTime()) ? null : v;
-  }
-  if (typeof v === 'string') {
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  if (typeof v === 'number') {
-    // Sheets serial
-    const ms = (v - 25569) * 86400 * 1000;
-    const d = new Date(ms);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  return null;
-}
-
-function formatYmd_(d) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const da = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${da}`;
-}
 
 function formatHm_(d) {
   const hh = String(d.getHours()).padStart(2, '0');
@@ -216,8 +189,8 @@ function formatHm_(d) {
   return `${hh}:${mm}`;
 }
 
-function buildUserNameMap_(ss) {
-  const sh = ss.getSheetByName(SHEET_USERS);
+function buildUserNameMap_() {
+  const sh = sh_(SHEET_USERS);
   if (!sh) return {};
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return {};
@@ -348,7 +321,7 @@ function doPost(e) {
  ********************************************************************/
 
 function listPlans_() {
-  const sh = ss_().getSheetByName(SHEET_PLAN);
+  const sh = sh_(SHEET_PLAN);
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return [];
 
@@ -388,41 +361,43 @@ function listPlans_() {
   return out;
 }
 
-function getPlanById_(planId) {
-  const sh = ss_().getSheetByName(SHEET_PLAN);
+let PLAN_MAP_CACHE_ = null;
+function getPlanMap_(){
+  if (PLAN_MAP_CACHE_) return PLAN_MAP_CACHE_;
+  const sh = sh_(SHEET_PLAN);
   const values = sh.getDataRange().getValues();
+  if (values.length < 2) return (PLAN_MAP_CACHE_ = new Map());
   const header = values[0].map(String);
   const idx = indexMap_(header);
-
-  for (let r = 1; r < values.length; r++) {
+  const map = new Map();
+  for (let r=1; r<values.length; r++){
     const row = values[r];
-    if (String(row[idx.plan_id]) === String(planId)) {
-      const isActive = String(row[idx.is_active] ?? '').toUpperCase() === 'TRUE';
-      const desc = (idx.descriptions !== undefined) ? String(row[idx.descriptions] ?? '') : '';
-
-      const ordRaw = (idx.order !== undefined) ? row[idx.order] : null;
-      const ordNum = Number(ordRaw);
-      const ord = Number.isFinite(ordNum) ? ordNum : 999999;
-
-      return {
-        plan_id: String(row[idx.plan_id]),
-        plan_name: String(row[idx.plan_name]),
-        duration_min: Number(row[idx.duration_min]),
-        price: Number(row[idx.price]),
-        is_active: isActive,
-        descriptions: desc,
-        order: ord, // ★追加
-      };
-    }
+    const plan_id = String(row[idx.plan_id]||'').trim();
+    if (!plan_id) continue;
+    const isActive = String(row[idx.is_active] ?? '').toUpperCase() === 'TRUE';
+    const ord = Number(row[idx.order]); 
+    map.set(plan_id, {
+      plan_id,
+      plan_name: String(row[idx.plan_name]||''),
+      duration_min: Number(row[idx.duration_min]||0),
+      price: Number(row[idx.price]||0),
+      is_active: isActive,
+      order: Number.isFinite(ord) ? ord : 999999,
+      descriptions: idx.descriptions!==undefined ? String(row[idx.descriptions]||'') : ''
+    });
   }
-  return null;
+  return (PLAN_MAP_CACHE_ = map);
+}
+
+function getPlanById_(planId){
+  return getPlanMap_().get(String(planId)) || null;
 }
 
 /** =========================
  *  Core: Users
  * ========================= */
 function getUserByLineId_(lineUserId) {
-  const sh = ss_().getSheetByName(SHEET_USERS);
+  const sh = sh_(SHEET_USERS);
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return null;
 
@@ -462,7 +437,7 @@ function upsertUser_(body) {
   const email = (body.email || '').trim();
 
   const now = new Date();
-  const sh = ss_().getSheetByName(SHEET_USERS);
+  const sh = sh_(SHEET_USERS);
   const values = sh.getDataRange().getValues();
 
   if (values.length === 0) throw new Error('USERS sheet is empty');
@@ -554,14 +529,6 @@ function upsertUser_(body) {
   }
 }
 
-function ensureUsersPhoneTextColumn_(usersSheet, idx) {
-  if (!usersSheet) return;
-  if (!idx || idx.phone === undefined) return;
-
-  const col = idx.phone + 1; // 1-based
-  usersSheet.getRange(1, col, usersSheet.getMaxRows(), 1).setNumberFormat('@');
-}
-
 /**
  * USERSシートの phone 列を「プレーンテキスト」に固定する
  * - 列全体を @ にする（これが一番確実）
@@ -578,7 +545,7 @@ function ensureUsersPhoneTextColumn_(usersSheet, idx) {
  *  Core: Reservations
  * ========================= */
 function listReservationsByUser_(lineUserId, status) {
-  const sh = ss_().getSheetByName(SHEET_RES);
+  const sh = sh_(SHEET_RESERVATIONS);
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return [];
 
@@ -682,7 +649,7 @@ function createReservation_(body) {
   try {
     if (hasConflict_(startAt, endAt)) throw new Error('TIME_SLOT_TAKEN');
 
-    const sh = ss_().getSheetByName(SHEET_RES);
+    const sh = sh_(SHEET_RESERVATIONS);
     const values = sh.getDataRange().getValues();
     const header = values[0].map(String);
     const idx = indexMap_(header);
@@ -781,7 +748,7 @@ function cancelReservation_(body) {
   lock.tryLock(15000);
 
   try {
-    const sh = ss_().getSheetByName(SHEET_RES);
+    const sh = sh_(SHEET_RESERVATIONS);
     const values = sh.getDataRange().getValues();
     const header = values[0].map(String);
     const idx = indexMap_(header);
@@ -876,7 +843,7 @@ function cancelReservation_(body) {
  *  Conflict Check (minimal)
  * ========================= */
 function hasConflict_(startAt, endAt) {
-  const sh = ss_().getSheetByName(SHEET_RES);
+  const sh = sh_(SHEET_RESERVATIONS);
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return false;
 
@@ -903,8 +870,20 @@ function hasConflict_(startAt, endAt) {
 /** =========================
  *  Helpers
  * ========================= */
-function ss_() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
+function ss_(){ return SpreadsheetApp.openById(SPREADSHEET_ID); }
+
+const SHEETS_ = {};
+function sh_(name){
+  const cached = SHEETS_[name];
+  if (cached) return cached;                 // シートオブジェクトは truthy
+  const sh = ss_().getSheetByName(name);
+  if (sh) SHEETS_[name] = sh;                // null はキャッシュしない
+  return sh;
+}
+function shFresh_(name){
+  const sh = ss_().getSheetByName(name);
+  if (sh) SHEETS_[name] = sh;
+  return sh;
 }
 
 function json_(obj) {
@@ -1048,7 +1027,7 @@ function getAvailability_(dateYmd, planId) {
  * - all_day TRUE or fromが日付だけ → 当日0:00〜翌日0:00
  */
 function listBlackoutsOverlapping_(dayStart, dayEnd) {
-  const sh = ss_().getSheetByName('BLACKOUTS');
+  const sh = sh_('BLACKOUTS');
   if (!sh) return []; // ← シート無ければ制限なし
 
   const values = sh.getDataRange().getValues();
@@ -1133,7 +1112,7 @@ function isDateOnlyInput_(v) {
 function getGranularityMinutes_() {
   // CONFIGシート A列=キー, B列=値 でもOKにしたいなら拡張できるけど、
   // まずは A1: granularity_min / B1: 30 で簡単運用
-  const sh = ss_().getSheetByName('CONFIG');
+  const sh = sh_('CONFIG');
   if (!sh) return 30;
 
   const key = String(sh.getRange('A1').getValue() || '').trim();
@@ -1146,7 +1125,7 @@ function getGranularityMinutes_() {
 
 function listOpenWindowsForDate_(dayStart, dayEnd) {
   // 1) SLOTS がある＆当日データがあるならそれを使う（手動上書き用）
-  const sh = ss_().getSheetByName('SLOTS');
+  const sh = sh_('SLOTS');
   if (sh) {
     const values = sh.getDataRange().getValues();
     if (values.length >= 2) {
@@ -1215,7 +1194,7 @@ function ceilToGranFromAnchor_(t, anchor, granMin) {
  * SLOTSから指定日の open slots を Date配列で返す
  */
 function listOpenSlotsForDate_(dayStart, dayEnd) {
-  const sh = ss_().getSheetByName('SLOTS');
+  const sh = sh_('SLOTS');
   if (!sh) throw new Error('SLOTS_SHEET_NOT_FOUND');
 
   const values = sh.getDataRange().getValues();
@@ -1335,85 +1314,11 @@ function toIsoWithOffset_(date) {
 }
 
 
-
-/** =========================
- *  Availability Range (weekly)
- *  - from: "YYYY-MM-DD" (start date)
- *  - days: 7 (default)
- *  - plan_id
- *  Returns:
- *    {
- *      from: "YYYY-MM-DD",
- *      days: 7,
- *      granularity_min: 30,
- *      slot_source_hint: "...",
- *      by_date: { "YYYY-MM-DD": ["ISO...", ...], ... }
- *    }
- * ========================= */
-function getAvailabilityRange_(fromYmd, days, planId) {
-  const plan = getPlanById_(planId);
-  if (!plan || !plan.is_active) throw new Error('PLAN_NOT_FOUND_OR_INACTIVE');
-
-  const nDays = Number.isFinite(days) && days > 0 && days <= 14 ? Math.floor(days) : 7;
-
-  const fromStart = parseYmdAsLocalDate_(fromYmd);
-  const rangeEnd = new Date(fromStart.getTime() + nDays * 24 * 60 * 60 * 1000);
-
-  const granMin = getGranularityMinutes_();
-  const requiredMs = Number(plan.duration_min) * 60 * 1000;
-
-  // 予約（CONFIRMED）を一括取得しておく（週単位なのでここが効く）
-  const confirmed = listConfirmedReservationsOverlapping_(fromStart, rangeEnd);
-
-  // ブラックアウトも一括取得
-  const blackouts = listBlackoutsOverlapping_(fromStart, rangeEnd);
-
-  const byDate = {};
-
-  for (let i = 0; i < nDays; i++) {
-    const dayStart = new Date(fromStart.getTime() + i * 24 * 60 * 60 * 1000);
-    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const dateKey = formatYmd_(dayStart);
-
-    // SLOTSから、その日に有効な「受付可能時間帯ウィンドウ」を取得
-    const windows = listOpenWindowsForDate_(dayStart, dayEnd);
-
-    const available = [];
-
-    for (const w of windows) {
-      const wStart = new Date(Math.max(w.from.getTime(), dayStart.getTime()));
-      const wEnd = new Date(Math.min(w.to.getTime(), dayEnd.getTime()));
-
-      for (let t = ceilToGran_(wStart, granMin).getTime(); t + requiredMs <= wEnd.getTime(); t += granMin * 60 * 1000) {
-        const startAt = new Date(t);
-        const endAt = new Date(t + requiredMs);
-
-        if (isInBlackout_(startAt, endAt, blackouts)) continue;
-        if (hasConflictInList_(startAt, endAt, confirmed)) continue;
-
-        available.push(toIsoWithOffset_(startAt));
-      }
-    }
-
-    byDate[dateKey] = Array.from(new Set(available)).sort();
-  }
-
-  return {
-    from: formatYmd_(fromStart),
-    days: nDays,
-    granularity_min: granMin,
-    business_open: bh.openStr,
-    business_close: bh.closeStr,
-    slot_source_hint: `...`,
-    by_date: byDate
-  };
-}
-
 /**
  * 週レンジに重なる CONFIRMED 予約を一括取得
  */
 function listConfirmedReservationsOverlapping_(rangeStart, rangeEnd) {
-  const sh = ss_().getSheetByName(SHEET_RES);
+  const sh = sh_(SHEET_RESERVATIONS);
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return [];
 
@@ -1470,21 +1375,22 @@ function formatYmd_(d) {
 }
 
 
+let CONFIG_CACHE_ = null;
 function getConfigMap_() {
-  const sh = ss_().getSheetByName('CONFIG');
-  if (!sh) return {};
+  if (CONFIG_CACHE_) return CONFIG_CACHE_;
+  const sh = sh_('CONFIG');
+  if (!sh) return (CONFIG_CACHE_ = {});
   const values = sh.getDataRange().getValues();
   const map = {};
-  for (let r = 0; r < values.length; r++) {
-    const k = String(values[r][0] || '').trim();
-    if (!k) continue;
-    map[k] = String(values[r][1] ?? '').trim();
+  for (const [k,v] of values) {
+    const key = String(k||'').trim();
+    if (key) map[key] = String(v ?? '').trim();
   }
-  return map;
+  return (CONFIG_CACHE_ = map);
 }
 
 function getBusinessHours_() {
-  const cfg = getConfigMap_ ? getConfigMap_() : {};
+  const cfg = getConfigMap_();
   const openStr = (cfg.business_open || '09:00').toString().replaceAll('：', ':').trim();
   const closeStr = (cfg.business_close || '18:00').toString().replaceAll('：', ':').trim();
 
@@ -1525,7 +1431,6 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
 
   if (!Number.isFinite(durationMin) || durationMin <= 0) throw new Error('INVALID_duration_min');
 
-  // 既存の getAvailabilityRange_ とほぼ同じだが requiredMs を durationMin から作る
   const nDays = Number.isFinite(days) && days > 0 && days <= 14 ? Math.floor(days) : 7;
 
   const fromStart = parseYmdAsLocalDate_(fromYmd);
@@ -1591,11 +1496,14 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
 
 function refreshTodayReservations() {
   const ss = ss_();
-  const wsRes = ss.getSheetByName(SHEET_RES);
-  if (!wsRes) throw new Error(`Sheet not found: ${SHEET_RES}`);
+  const wsRes = sh_(SHEET_RESERVATIONS);
+  if (!wsRes) throw new Error(`Sheet not found: ${SHEET_RESERVATIONS}`);
 
-  let wsToday = ss.getSheetByName(SHEET_TODAY);
-  if (!wsToday) wsToday = ss.insertSheet(SHEET_TODAY);
+  let wsToday = sh_(SHEET_TODAY);
+  if (!wsToday) {
+    ss.insertSheet(SHEET_TODAY);
+    wsToday = shFresh_(SHEET_TODAY);
+  }
 
   const tz = "Asia/Tokyo";
   wsToday.clear();
@@ -1628,8 +1536,8 @@ function refreshTodayReservations() {
   const hasNameSnap  = idx.name_snapshot !== undefined;
   const hasNote      = idx.note !== undefined;
 
-  const userNameByLineId  = buildUserNameMap_(ss);
-  const userPhoneByLineId = buildUserPhoneMap_(ss);
+  const userNameByLineId  = buildUserNameMap_();
+  const userPhoneByLineId = buildUserPhoneMap_();
 
   // 今日（JST）範囲
   const now = new Date();
@@ -1714,8 +1622,8 @@ function refreshTodayReservations() {
   wsToday.getRange("K1").setValue(`更新: ${Utilities.formatDate(new Date(), tz, "yyyy/MM/dd HH:mm:ss")}`);
 }
 
-function buildUserPhoneMap_(ss) {
-  const sh = ss.getSheetByName(SHEET_USERS);
+function buildUserPhoneMap_() {
+  const sh = sh_(SHEET_USERS);
   if (!sh) return {};
   const values = sh.getDataRange().getValues();
   if (values.length < 2) return {};
@@ -1859,8 +1767,8 @@ function markCompletedReservations() {
   const tz = "Asia/Tokyo";
   const now = new Date();
 
-  const sh = ss_().getSheetByName(SHEET_RES);
-  if (!sh) throw new Error(`Sheet not found: ${SHEET_RES}`);
+  const sh = sh_(SHEET_RESERVATIONS);
+  if (!sh) throw new Error(`Sheet not found: ${SHEET_RESERVATIONS}`);
 
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return;
@@ -1921,8 +1829,9 @@ function syncJapaneseHolidaysToBlackouts() {
   const tz = "Asia/Tokyo";
   const ss = ss_();
 
-  let sh = ss.getSheetByName("BLACKOUTS");
+  let sh = sh_("BLACKOUTS");
   if (!sh) sh = ss.insertSheet("BLACKOUTS");
+  sh = shFresh_("BLACKOUTS");   // ✅ここ（insert直後）
 
   // ---- ヘッダ保証
   let header = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0].map(v => String(v || "").trim());
@@ -2110,8 +2019,7 @@ function buildOpenWindowsByDate_(rangeStart, rangeEnd, bh) {
   }
 
   // SLOTS があれば「該当日が1件でもある日」だけ SLOTS を優先
-  const ss = ss_();
-  const sh = ss.getSheetByName('SLOTS');
+  const sh = sh_('SLOTS');
   if (!sh) return out;
 
   const lastRow = sh.getLastRow();
@@ -2163,9 +2071,8 @@ function buildOpenWindowsByDate_(rangeStart, rangeEnd, bh) {
 
 // 週レンジの CONFIRMED 予約を一括取得して busy区間にする
 function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
-  const ss = ss_();
-  const sh = ss.getSheetByName(SHEET_RES);
-  if (!sh) throw new Error(`Sheet not found: ${SHEET_RES}`);
+  const sh = sh_(SHEET_RESERVATIONS);
+  if (!sh) throw new Error(`Sheet not found: ${SHEET_RESERVATIONS}`);
 
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return {};
@@ -2207,8 +2114,7 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
 
 // 週レンジの BLACKOUTS を一括取得して busy区間にする
 function buildBlackoutsBusyByDate_(rangeStart, rangeEnd) {
-  const ss = ss_();
-  const sh = ss.getSheetByName('BLACKOUTS');
+  const sh = sh_('BLACKOUTS');
   if (!sh) return {};
 
   const lastRow = sh.getLastRow();
@@ -2379,11 +2285,14 @@ function renderTodayGanttChart() {
   const ss = ss_();
   const tz = "Asia/Tokyo";
 
-  const resSh = ss.getSheetByName(SHEET_RESERVATIONS);
+  const resSh = sh_(SHEET_RESERVATIONS);
   if (!resSh) throw new Error(`Sheet not found: ${SHEET_RESERVATIONS}`);
 
-  let ganttSh = ss.getSheetByName(SHEET_TODAY_GANTT);
-  if (!ganttSh) ganttSh = ss.insertSheet(SHEET_TODAY_GANTT);
+  let ganttSh = sh_(SHEET_TODAY_GANTT);
+  if (!ganttSh) {
+    ss.insertSheet(SHEET_TODAY_GANTT);
+    ganttSh = shFresh_(SHEET_TODAY_GANTT);
+  }
 
   // ===== 今日（JST）範囲 =====
   const now = new Date();
@@ -2412,7 +2321,7 @@ function renderTodayGanttChart() {
   requiredCols_(idx, ["reserved_start", "reserved_end", "status", "line_user_id"]);
 
   // 名前解決（既存）
-  const userNameByLineId = buildUserNameMap_(ss);
+  const userNameByLineId = buildUserNameMap_();
 
   /** @type {{start:Date,end:Date,label:string}[]} */
   const todays = [];
