@@ -2,20 +2,31 @@
  * ============================
  * GAS_URL, LINE公式アカウント（LIFF）
  * ============================
+ * URLパラメータから取得
+ * 例：
+ * https://example.pages.dev/?gasUrl=XXXX&liffId=XXXX
  */
-const env = window.__ENV__;
-if (!env?.GAS_URL || !env?.LIFF_ID) {
-  alert("config.js が読み込まれていません（GAS_URL / LIFF_ID 未設定）");
-  throw new Error("Missing __ENV__");
+function getEnv_() {
+  const params = new URLSearchParams(window.location.search);
+
+  const GAS_URL = params.get("gasUrl");
+  const LIFF_ID = params.get("liffId");
+
+  if (!GAS_URL || !LIFF_ID) {
+    alert("URLにgasUrlまたはliffIdが設定されていません");
+    throw new Error("Missing GAS_URL or LIFF_ID");
+  }
+
+  return { GAS_URL, LIFF_ID };
 }
 
-const { GAS_URL, LIFF_ID } = env;
+const { GAS_URL, LIFF_ID } = getEnv_();
 
 /**
  * API：GET/POST
  */
 async function apiRequest(method, paramsOrPayload) {
-  showLoading(method === "GET" ? "読み込み中…" : "処理中…");
+  showLoading(method === "GET" ? "読み込み中…\n数秒かかることがありますので\n少々お待ち下さい。" : "処理中…\n数秒かかることがありますので\n少々お待ち下さい。");
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20000); // 20s timeout
@@ -533,6 +544,8 @@ async function reserve() {
       <div class="muted small">キャンセルは「予約一覧」から可能です。</div>
     `;
 
+    await popupSuccess("予約が完了しました");
+
     gotoStep(4);
     setStatus("予約が完了しました");
   } catch (e) {
@@ -626,6 +639,8 @@ async function cancelReservation(cancelToken) {
       }
       throw new Error(r.error || "cancel_failed");
     }
+
+    await popupSuccess("予約をキャンセルしました");
 
     setStatus("キャンセルしました");
     return { handled: true, refreshed: true };
@@ -873,7 +888,7 @@ function clamp100_(s) {
 function showLoading(msg){
   const ov = $("loadingOverlay");
   const tx = $("loadingText");
-  if (tx) tx.textContent = msg || "読み込み中…";
+  if (tx) tx.textContent = msg || "読み込み中…\n数秒かかることがありますので\n少々お待ち下さい。";
   if (ov) ov.classList.remove("hidden");
 }
 function hideLoading(){
@@ -884,9 +899,21 @@ function hideLoading(){
 
 
 function isDevMode_() {
-  // 例: http://localhost:5500/?dev=1
+  // 例: http://localhost:5500/?mode=develop
   const p = new URLSearchParams(location.search);
-  return p.get("dev") === "1";
+  return p.get("mode") === "develop";
+}
+
+// モーダルライブラリ表示（確認）
+async function popupSuccess(msgHtml, title="完了") {
+  if (!window.Swal) return confirm(msg);
+  const r = await Swal.fire({
+    icon: "success",
+    title,
+    html: msgHtml,
+    confirmButtonText: "OK",
+  });
+  return r.isConfirmed;
 }
 
 // モーダルライブラリ表示（確認）

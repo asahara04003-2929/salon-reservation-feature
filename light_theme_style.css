@@ -440,7 +440,11 @@ a{ color:inherit; }
   text-align:center;
   min-width: 220px;
 }
-.loadingText{ font-size: 13px; color: rgba(229,231,235,.95); }
+.loadingText{ 
+  font-size: 13px;
+  color: rgba(229,231,235,.95);
+  white-space: pre-line;
+}
 .spinner{
   width: 34px; height: 34px;
   border-radius: 999px;
