@@ -89,76 +89,77 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
   clearRange.setVerticalAlignment("top");
   clearRange.setWrap(true);
 
-  // ===== 予約データ取得（必要列だけ） =====
-  const lastRow = resSh.getLastRow();
-  if (lastRow < 2) return;
-
-  const header = resSh.getRange(1, 1, 1, resSh.getLastColumn()).getValues()[0].map(String);
-  const ridx = indexMap_(header);
-  requiredCols_(ridx, ["reserved_start", "reserved_end", "status", "line_user_id"]);
-
-  const n = lastRow - 1;
-
-  // 必須列
-  const colStatus = resSh.getRange(2, ridx.status + 1, n, 1).getValues();
-  const colStart  = resSh.getRange(2, ridx.reserved_start + 1, n, 1).getValues();
-  const colLineId = resSh.getRange(2, ridx.line_user_id + 1, n, 1).getValues();
-
-  // 任意列（スナップショット優先）
-  const hasNameSnap = ridx.name_snapshot !== undefined;
-  const colNameSnap = hasNameSnap ? resSh.getRange(2, ridx.name_snapshot + 1, n, 1).getValues() : null;
-
-  const hasPlanNamesSnap = ridx.plan_names_snapshot !== undefined;
-  const colPlanNamesSnap = hasPlanNamesSnap ? resSh.getRange(2, ridx.plan_names_snapshot + 1, n, 1).getValues() : null;
-
-  const hasPlanNameSnap = ridx.plan_name_snapshot !== undefined;
-  const colPlanNameSnap = (!hasPlanNamesSnap && hasPlanNameSnap)
-    ? resSh.getRange(2, ridx.plan_name_snapshot + 1, n, 1).getValues()
-    : null;
-
-  // USERS名寄せ（既存どおり）
-  const userNameByLineId = buildUserNameMap_();
-
-  /** @type {Record<string, string[]>} */
+  // @type {Record<string, string[]>}
   const byDay = {};
 
-  for (let i = 0; i < n; i++) {
-    const status = String(colStatus[i][0] || "");
-    if (status !== "CONFIRMED") continue;
+  // ===== 予約データ取得（必要列だけ） =====
+  const lastRow = resSh.getLastRow();
 
-    const start = coerceToDate_(colStart[i][0]);
-    if (!start) continue;
+  if (lastRow >= 2) {
 
-    // 当月外は除外（開始日で判定）
-    if (start < firstDay || start > lastDay) continue;
+    const header = resSh.getRange(1, 1, 1, resSh.getLastColumn()).getValues()[0].map(String);
+    const ridx = indexMap_(header);
+    requiredCols_(ridx, ["reserved_start", "reserved_end", "status", "line_user_id"]);
 
-    const dayKey = formatYmd_(start); // YYYY-MM-DD
-    const hhmm = formatHm_(start);
+    const n = lastRow - 1;
 
-    const lineUserId = String(colLineId[i][0] || "").trim();
+    // 必須列
+    const colStatus = resSh.getRange(2, ridx.status + 1, n, 1).getValues();
+    const colStart  = resSh.getRange(2, ridx.reserved_start + 1, n, 1).getValues();
+    const colLineId = resSh.getRange(2, ridx.line_user_id + 1, n, 1).getValues();
 
-    const nameSnap = hasNameSnap ? String(colNameSnap[i][0] || "").trim() : "";
-    const customer = nameSnap
-      ? nameSnap
-      : (userNameByLineId[lineUserId] || lineUserId || "（不明）");
+    // 任意列（スナップショット優先）
+    const hasNameSnap = ridx.name_snapshot !== undefined;
+    const colNameSnap = hasNameSnap ? resSh.getRange(2, ridx.name_snapshot + 1, n, 1).getValues() : null;
 
-    let planName = "";
-    if (hasPlanNamesSnap) {
-      planName = String(colPlanNamesSnap[i][0] || "").trim();
-    } else if (colPlanNameSnap) {
-      planName = String(colPlanNameSnap[i][0] || "").trim();
+    const hasPlanNamesSnap = ridx.plan_names_snapshot !== undefined;
+    const colPlanNamesSnap = hasPlanNamesSnap ? resSh.getRange(2, ridx.plan_names_snapshot + 1, n, 1).getValues() : null;
+
+    const hasPlanNameSnap = ridx.plan_name_snapshot !== undefined;
+    const colPlanNameSnap = (!hasPlanNamesSnap && hasPlanNameSnap)
+      ? resSh.getRange(2, ridx.plan_name_snapshot + 1, n, 1).getValues()
+      : null;
+
+    // USERS名寄せ
+    const userNameByLineId = buildUserNameMap_();
+
+    for (let i = 0; i < n; i++) {
+      const status = String(colStatus[i][0] || "");
+      if (status !== "CONFIRMED") continue;
+
+      const start = coerceToDate_(colStart[i][0]);
+      if (!start) continue;
+
+      // 当月外は除外
+      if (start < firstDay || start > lastDay) continue;
+
+      const dayKey = formatYmd_(start);
+      const hhmm = formatHm_(start);
+
+      const lineUserId = String(colLineId[i][0] || "").trim();
+
+      const nameSnap = hasNameSnap ? String(colNameSnap[i][0] || "").trim() : "";
+      const customer = nameSnap
+        ? nameSnap
+        : (userNameByLineId[lineUserId] || lineUserId || "（不明）");
+
+      let planName = "";
+      if (hasPlanNamesSnap) {
+        planName = String(colPlanNamesSnap[i][0] || "").trim();
+      } else if (colPlanNameSnap) {
+        planName = String(colPlanNameSnap[i][0] || "").trim();
+      }
+
+      const text = `${hhmm} ${customer}${planName ? " " + planName : ""}`.trim();
+
+      if (!byDay[dayKey]) byDay[dayKey] = [];
+      byDay[dayKey].push(text);
     }
 
-    const text = `${hhmm} ${customer}${planName ? " " + planName : ""}`.trim();
-
-    if (!byDay[dayKey]) byDay[dayKey] = [];
-    byDay[dayKey].push(text);
+    Object.keys(byDay).forEach(k => byDay[k].sort());
   }
 
-  // 時刻順
-  Object.keys(byDay).forEach(k => byDay[k].sort());
-
-  // 描画
+  // ===== カレンダー描画 =====
   for (let d = 1; d <= daysInMonth; d++) {
     const dateObj = new Date(year, month - 1, d, 0, 0, 0, 0);
     const cellIndex = offset + (d - 1);
