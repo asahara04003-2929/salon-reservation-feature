@@ -228,7 +228,11 @@ function wireEvents() {
     await registerUser();
   });
 
-  $("btnBackToPlan")?.addEventListener("click", () => gotoStep(1));
+  $("btnBackToPlan")?.addEventListener("click", () => {
+    clearAvailabilityCache_();
+    gotoStep(1);
+  });
+
   $("btnBackToDateTime")?.addEventListener("click", () => gotoStep(2));
 
   $("btnConfirmReserve")?.addEventListener("click", async () => {
@@ -236,6 +240,7 @@ function wireEvents() {
   });
 
   $("btnNewBooking")?.addEventListener("click", async () => {
+    clearAvailabilityCache_();
     state.selectedPlans = [];
     state.totalDurationMin = 0;
     state.totalPrice = 0;
@@ -940,6 +945,12 @@ function renderWeekFromCache_(){
   const from = ymd(state.weekStart);
   const to = ymd(addDays(state.weekStart, 6));
   $("weekLabel") && ($("weekLabel").textContent = `${from} 〜 ${to}`);
+}
+
+function clearAvailabilityCache_(){
+  state.availabilityCache = null;
+  state.cacheFrom = null;
+  state.cacheTo = null;
 }
 
 function updateWeekButtons_(){
