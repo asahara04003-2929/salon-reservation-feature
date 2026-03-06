@@ -119,6 +119,13 @@ function fmtJstDateTime(dateStrOrDate) {
   const d = new Date(dateStrOrDate);
   return `${fmtYmd(d)} ${fmtTime(d)}`;
 }
+function fmtDateJa(dateStrOrDate){
+  const d = new Date(dateStrOrDate);
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const dd = String(d.getDate()).padStart(2,"0");
+  return `${y}年${m}月${dd}日`;
+}
 
 /**
  * state
@@ -643,12 +650,18 @@ function renderReservations(list) {
     const el = document.createElement("div");
     el.className = "item";
 
-    const title = `${escapeHtml(resv.plan_name || "プラン")} / ${escapeHtml(fmtJstDateTime(resv.reserved_start))}`;
-    const meta = `所要: ${Number(resv.duration_min)}分 / ¥${Number(resv.price).toLocaleString()}`;
+    const start = new Date(resv.reserved_start);
+
+    const date = fmtDateJa(start);
+    const time = fmtTime(start);
 
     el.innerHTML = `
-      <div class="item__title">${title}</div>
-      <div class="item__meta">${meta}</div>
+      <div class="item__title">${escapeHtml(resv.plan_name || "プラン")}</div>
+      <div class="item__meta">予約日：${escapeHtml(date)}</div>
+      <div class="item__meta">予約時間：${escapeHtml(time)}</div>
+      <div class="item__meta">所要時間：${Number(resv.duration_min)}分</div>
+      <div class="item__meta">料金：¥${Number(resv.price).toLocaleString()}</div>
+
       <div class="item__actions">
         <button class="btn btn--danger" type="button">キャンセル</button>
       </div>
@@ -659,7 +672,7 @@ function renderReservations(list) {
       if (!ok) return;
 
       const result = await cancelReservation(resv.cancel_token);
-      if (result.refreshed) await openMyPage(); // ←成功時だけ更新
+      if (result.refreshed) await openMyPage();
     });
 
     root.appendChild(el);

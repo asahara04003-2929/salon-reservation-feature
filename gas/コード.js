@@ -654,6 +654,7 @@ function listReservationsByUser_(lineUserId, status) {
   const colCancelToken = hasCancelToken ? sh.getRange(2, idx.cancel_token + 1, n, 1).getValues() : null;
 
   const out = [];
+
   for (let i = 0; i < n; i++) {
     if (String(colLine[i][0]) !== String(lineUserId)) continue;
     if (status && String(colStatus[i][0]) !== String(status)) continue;
@@ -676,17 +677,20 @@ function listReservationsByUser_(lineUserId, status) {
       status: String(colStatus[i][0] || ''),
       reserved_start: start,
       reserved_end: end,
-
-      // ★ ここが重要
-      plan_name: planNames,        // 既存UIが plan_name 参照ならここに入れる
+      plan_name: planNames,
       duration_min: Number.isFinite(dur) ? dur : null,
       price: Number.isFinite(price) ? price : null,
-
       cancel_token: hasCancelToken ? String(colCancelToken[i][0] || '') : ''
     });
   }
 
-  out.sort((a, b) => new Date(a.reserved_start) - new Date(b.reserved_start));
+  // ★開始時刻 昇順
+  out.sort((a, b) => {
+    const t1 = new Date(a.reserved_start).getTime();
+    const t2 = new Date(b.reserved_start).getTime();
+    return t1 - t2;
+  });
+
   return out;
 }
 
@@ -817,18 +821,19 @@ function createReservation_(body) {
     }
 
     // ★ 予約確定をユーザーへPush通知（失敗しても予約は成功扱い）
-    // ※ただし admin本人の予約なら送らない
     if (!isAdminSelfReserve) {
       try {
         const tz = "Asia/Tokyo";
-        const startStr = Utilities.formatDate(startAt, tz, "yyyy/MM/dd HH:mm");
-        const endStr   = Utilities.formatDate(endAt, tz, "HH:mm");
+        const dateStr = Utilities.formatDate(startAt, tz, "yyyy年MM月dd日");
+        const timeStr = Utilities.formatDate(startAt, tz, "HH:mm");
 
         pushLineMessage_(lineUserId,
-          "✅ 予約が確定しました\n" +
-          `日時：${startStr} - ${endStr}\n` +
-          `プラン：${planNames}\n` +
-          `料金：${priceStr}円\n` +
+          "✅ 予約が確定しました\n\n" +
+          `${planNames}\n` +
+          `予約日：${dateStr}\n` +
+          `予約時間：${timeStr}\n` +
+          `所要時間：${totalDuration}分\n` +
+          `料金：¥${priceStr}\n` +
           `予約ID：${reservationId}`
         );
       } catch (pushErr) {
@@ -908,13 +913,14 @@ function cancelReservation_(body) {
       try {
         if (lineUserId) {
           const tz = "Asia/Tokyo";
-          const startStr = reservedStart ? Utilities.formatDate(reservedStart, tz, "yyyy/MM/dd HH:mm") : "";
-          const endStr   = reservedEnd ? Utilities.formatDate(reservedEnd, tz, "HH:mm") : "";
+          const dateStr = reservedStart ? Utilities.formatDate(reservedStart, tz, "yyyy年MM月dd日") : "";
+          const timeStr = reservedStart ? Utilities.formatDate(reservedStart, tz, "HH:mm") : "";
 
           pushLineMessage_(lineUserId,
-            "✅ 予約をキャンセルしました\n" +
-            (startStr ? `日時：${startStr}${endStr ? " - " + endStr : ""}\n` : "") +
-            (planNames ? `プラン：${planNames}\n` : "") +
+            "✅ 予約をキャンセルしました\n\n" +
+            (planNames ? `${planNames}\n` : "") +
+            (dateStr ? `予約日：${dateStr}\n` : "") +
+            (timeStr ? `予約時間：${timeStr}\n` : "") +
             (reservationId ? `予約ID：${reservationId}` : "")
           );
         }
