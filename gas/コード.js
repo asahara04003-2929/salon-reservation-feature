@@ -301,20 +301,6 @@ function doGet(e) {
         );
       }
 
-      case 'availability_range': {
-        const from = reqParam_(e, 'from');
-        const days = Number((e.parameter.days || '7').toString().trim());
-        const durationMinParam = (e.parameter.duration_min || '').toString().trim();
-        const planId = (e.parameter.plan_id || '').toString().trim();
-        const durationMin = durationMinParam ? Number(durationMinParam) : null;
-
-        return cachedJson_(
-          `avr:${cacheVer_()}:${from}:${days}:${durationMin||''}:${planId||''}`,
-          20, // 20秒
-          () => ({ ok:true, ...getAvailabilityRangeByDuration_(from, days, planId, durationMin) })
-        );
-      }
-
       case 'availability_range_materials': {
         const from = reqParam_(e, 'from');
         const days = Number((e.parameter.days || '7').toString().trim());
@@ -1650,96 +1636,6 @@ function isClosedByWeekday_(dayStart) {
   return closed.includes(dayStart.getDay());
 }
 
-
-function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverride) {
-  let durationMin = durationMinOverride;
-
-  if (!durationMin) {
-    if (!planId) throw new Error('MISSING_PARAM_plan_id_or_duration_min');
-    const plan = getPlanById_(planId);
-    if (!plan || !plan.is_active) throw new Error('PLAN_NOT_FOUND_OR_INACTIVE');
-    durationMin = Number(plan.duration_min);
-  }
-  if (!Number.isFinite(durationMin) || durationMin <= 0) throw new Error('INVALID_duration_min');
-
-  // days
-  const fromStart = parseYmdAsLocalDate_(fromYmd);
-
-  // ★1ヶ月後
-  const rangeEnd = new Date(fromStart);
-  rangeEnd.setMonth(rangeEnd.getMonth() + 1);
-
-  // ★実際の日数
-  const nDays = Math.floor((rangeEnd - fromStart) / 86400000);
-
-  const granMin = getGranularityMinutes_();
-  const prepMin = getPreparationMinutes_();
-
-  const requiredMsService = durationMin * 60 * 1000;
-  const requiredMsOverlap = (durationMin + prepMin) * 60 * 1000;
-
-  const tz = "Asia/Tokyo";
-  const now = new Date();
-
-  const threshold = new Date(now.getTime() + granMin * 60 * 1000);
-
-  const confirmed = listConfirmedReservationsOverlapping_(fromStart, rangeEnd);
-  const blackouts = listBlackoutsOverlapping_(fromStart, rangeEnd);
-
-  const bh = (typeof getBusinessHours_ === 'function') ? getBusinessHours_() : { openStr: '09:00', closeStr: '18:00' };
-
-  const byDate = {};
-
-  for (let i = 0; i < nDays; i++) {
-    const dayStart = new Date(fromStart.getTime() + i * 24 * 60 * 60 * 1000);
-    const dayEnd   = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
-    const dateKey  = formatYmd_(dayStart);
-
-    if (dayEnd.getTime() <= threshold.getTime()) {
-      byDate[dateKey] = [];
-      continue;
-    }
-
-    const windows = listOpenWindowsForDate_(dayStart, dayEnd);
-    const available = [];
-
-    for (const w of windows) {
-      const wStart = new Date(Math.max(w.from.getTime(), dayStart.getTime()));
-      const wEnd   = new Date(Math.min(w.to.getTime(), dayEnd.getTime()));
-
-      const bh2 = getBusinessHours_();
-      const anchor = new Date(dayStart.getFullYear(), dayStart.getMonth(), dayStart.getDate(), bh2.oh, bh2.om, 0, 0);
-
-      // ✅ business_close は「施術時間」だけで判定（準備時間は見ない）
-      for (let t = ceilToGranFromAnchor_(wStart, anchor, granMin).getTime(); t + requiredMsService <= wEnd.getTime(); t += granMin * 60 * 1000) {
-        const startAt = new Date(t);
-        const endAtService = new Date(t + requiredMsService);
-        const endAtOverlap = new Date(t + requiredMsOverlap);
-
-        if (startAt.getTime() <= threshold.getTime()) continue;
-
-        // ✅ blackout/重複判定は「施術 + 準備」
-        if (isInBlackout_(startAt, endAtOverlap, blackouts)) continue;
-        if (hasConflictInList_(startAt, endAtOverlap, confirmed)) continue;
-
-        available.push(toIsoWithOffset_(startAt));
-      }
-    }
-
-    byDate[dateKey] = Array.from(new Set(available)).sort();
-  }
-
-  return {
-    from: formatYmd_(fromStart),
-    days: nDays,
-    granularity_min: granMin,
-    business_open: bh.openStr,
-    business_close: bh.closeStr,
-    required_duration_min: durationMin,
-    slot_source_hint: `所要時間=${durationMin}分で生成（粒度: ${granMin}分）/ BLACKOUTS適用`,
-    by_date: byDate
-  };
-}
 
 function refreshTodayReservations() {
   const ss = ss_();
