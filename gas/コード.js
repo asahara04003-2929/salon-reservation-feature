@@ -1327,6 +1327,23 @@ function getGranularityMinutes_() {
   return Number.isFinite(n) && n > 0 ? n : 30;
 }
 
+function getBookingWindowWeeks_() {
+  const sh = sh_('CONFIG');
+  if (!sh) return 5;
+
+  const values = sh.getRange('A:B').getValues();
+
+  for (const row of values) {
+    const key = String(row[0] || '').trim();
+    if (key === 'booking_window_weeks') {
+      const n = Number(row[1]);
+      return Number.isFinite(n) && n > 0 ? n : 8;
+    }
+  }
+
+  return null;
+}
+
 function listOpenWindowsForDate_(dayStart, dayEnd) {
   // 1) SLOTS がある＆当日データがあるならそれを使う（手動上書き用）
   const sh = sh_('SLOTS');
@@ -2189,6 +2206,10 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
 
   const now = new Date();
 
+  // ★予約可能期限（週単位）
+  const bookingWeeks = getBookingWindowWeeks_();
+  const bookingLimit = new Date(now.getTime() + bookingWeeks * 7 * 24 * 60 * 60 * 1000);
+
   // ✅ しきい値：現在日時 + granularity_min
   const threshold = new Date(now.getTime() + granMin * 60 * 1000);
   const thresholdKey = Utilities.formatDate(threshold, tz, "yyyy-MM-dd");
@@ -2218,6 +2239,13 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
 
     if (dayEnd.getTime() <= threshold.getTime()) {
       windowsByDate[key] = [];
+      continue;
+    }
+
+    // ★予約受付期間を超えた場合
+    if (dayStart.getTime() > bookingLimit.getTime()) {
+      windowsByDate[key] = [];
+      continue;
     }
   }
 
@@ -2236,6 +2264,7 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
     required_duration_min: durationMin,
     business_open: bh.openStr,
     business_close: bh.closeStr,
+    booking_window_weeks: bookingWeeks,
     windows_by_date: windowsByDate,
     busy_by_date: busyByDate,
     min_start_min_by_date: minStartMinByDate

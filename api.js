@@ -264,7 +264,7 @@ function wireEvents() {
     await loadAvailabilityWeek();
   });
   $("btnToday")?.addEventListener("click", async () => {
-    state.weekStart = startOfWeek(new Date());
+    state.weekStart = startOfView(new Date());
     await loadAvailabilityWeek();
   });
   initDobPicker(); // ★追加：生年月日ドラムロール
@@ -321,7 +321,7 @@ async function checkUser() {
 
 function setDefaultDate() {
   // 週表示の起点を今日の週にする
-  state.weekStart = startOfWeek(new Date());
+  state.weekStart = startOfView(new Date());
   const from = ymd(state.weekStart);
   const to = ymd(addDays(state.weekStart, 6));
   const label = $("weekLabel");
@@ -483,7 +483,7 @@ function renderPlans() {
 
   $("btnPlanDecide").addEventListener("click", async () => {
     // 週の起点
-    state.weekStart = startOfWeek(new Date());
+    state.weekStart = startOfView(new Date());
     await loadAvailabilityWeek(); // 週表示取得
     gotoStep(2);
   });
@@ -656,19 +656,51 @@ async function cancelReservation(cancelToken) {
  * XSS safe
  */
 
-function startOfWeek(d){
-  // 月曜始まり
+function startOfView(d){
   const x = new Date(d);
-  const day = (x.getDay() + 6) % 7; // Mon=0 ... Sun=6
   x.setHours(0,0,0,0);
-  x.setDate(x.getDate() - day);
   return x;
 }
 function shiftWeek(days){
-  if (!state.weekStart) state.weekStart = startOfWeek(new Date());
-  const x = new Date(state.weekStart);
-  x.setDate(x.getDate() + days);
-  state.weekStart = x;
+
+  if (!state.weekStart) state.weekStart = startOfView(new Date());
+
+  const next = new Date(state.weekStart);
+  next.setDate(next.getDate() + days);
+
+  const today = startOfView(new Date());
+
+  // 過去表示禁止
+  if (next < today) return;
+
+  // 予約可能範囲制御
+  if (state.bookingWindowWeeks){
+
+    const limit = new Date(today);
+    limit.setDate(limit.getDate() + state.bookingWindowWeeks * 7);
+
+    if (next > limit) return;
+  }
+
+  state.weekStart = next;
+}
+function canShiftNextWeek_(){
+  if (!state.bookingWindowWeeks) return true;
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+
+  const limit = new Date(today);
+  limit.setDate(limit.getDate() + state.bookingWindowWeeks * 7);
+
+  const nextWeekStart = new Date(state.weekStart);
+  nextWeekStart.setDate(nextWeekStart.getDate() + 7);
+
+  const nextWeekEnd = new Date(nextWeekStart);
+  nextWeekEnd.setDate(nextWeekEnd.getDate() + 6);
+
+  // 次の週が予約範囲に1日でも含まれていればOK
+  return nextWeekStart <= limit;
 }
 function addDays(d, n){
   const x = new Date(d);
@@ -742,11 +774,11 @@ async function loadAvailabilityWeek() {
   $("timeTableHead") && ($("timeTableHead").innerHTML = "");
   $("timeTableBody") && ($("timeTableBody").innerHTML = "");
 
-  if (!state.weekStart) state.weekStart = startOfWeek(new Date());
+  if (!state.weekStart) state.weekStart = startOfView(new Date());
 
   try {
     const r = await apiGet({
-      action: "availability_range_materials",   // ★ここが変更点
+      action: "availability_range_materials",
       from: ymd(state.weekStart),
       days: "7",
       duration_min: String(state.totalDurationMin),
@@ -758,6 +790,10 @@ async function loadAvailabilityWeek() {
     state.granMin = r.granularity_min;
     state.businessOpen = r.business_open;
     state.businessClose = r.business_close;
+
+    // ★追加（予約可能週）
+    state.bookingWindowWeeks = r.booking_window_weeks ?? null;
+
     $("slotHint") && ($("slotHint").textContent = "");
 
     const dayResults = [...Array(7)].map((_, i) => {
@@ -771,13 +807,13 @@ async function loadAvailabilityWeek() {
       const free = subtractIntervals_(windows, busy);
       const starts = buildStartMins_(free, Number(r.granularity_min), Number(r.required_duration_min), minStartMin);
 
-      // HH:mm の Set を作る
       const slotSet = new Set(starts.map(min => minToHHMM_(min)));
 
-      return { date: d, slotSet }; // ← slots配列じゃなくSet
+      return { date: d, slotSet };
     });
 
     renderWeekTable(dayResults);
+    updateWeekButtons_();
 
     const from = ymd(state.weekStart);
     const to = ymd(addDays(state.weekStart, 6));
@@ -791,6 +827,12 @@ async function loadAvailabilityWeek() {
   }
 }
 
+function updateWeekButtons_(){
+  const nextBtn = $("btnNextWeek");
+  if (!nextBtn) return;
+
+  nextBtn.disabled = !canShiftNextWeek_();
+}
 
 function renderWeekTable(dayResults){
   if (!el?.timeHead || !el?.timeBody) return;
