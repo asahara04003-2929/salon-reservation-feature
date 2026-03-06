@@ -324,7 +324,6 @@ function doPost(e) {
       }
 
       case 'reserve': {
-        const capacity = getCapacity_(); // GAS CONFIG から capacity を取得
         const result = createReservation_(body);
         bumpCacheVer_();
 
@@ -833,7 +832,7 @@ function createReservation_(body) {
           `予約日：${dateStr}\n` +
           `予約時間：${timeStr}\n` +
           `所要時間：${totalDuration}分\n` +
-          `料金：¥${priceStr}\n` +
+          `料金：${priceStr}円\n` +
           `予約ID：${reservationId}`
         );
       } catch (pushErr) {
@@ -2643,7 +2642,6 @@ function renderTodayGanttChart() {
     ganttSh = shFresh_(SHEET_TODAY_GANTT);
   }
 
-  // ===== 今日（JST）範囲 =====
   const now = new Date();
   const y = Number(Utilities.formatDate(now, tz, "yyyy"));
   const m = Number(Utilities.formatDate(now, tz, "MM")) - 1;
@@ -2651,16 +2649,15 @@ function renderTodayGanttChart() {
   const dayStart = new Date(y, m, d, 0, 0, 0, 0);
   const dayEnd   = new Date(y, m, d + 1, 0, 0, 0, 0);
 
-  // ===== CONFIG =====
-  const granMin = getGranularityMinutes_();  // 既存
-  const bh = getBusinessHours_();            // 既存（openStr/closeStr, oh/om, ch/cm）
+  const granMin = getGranularityMinutes_();
+  const bh = getBusinessHours_();
   const openMin  = bh.oh * 60 + bh.om;
   const closeMin = bh.ch * 60 + bh.cm;
 
-  // ===== 予約取得 =====
+  const capacity = getCapacity_();
+
   const values = resSh.getDataRange().getValues();
   if (values.length < 2) {
-    // シートを空描画
     drawEmptyTodayGantt_(ganttSh, dayStart, openMin, closeMin, granMin, tz);
     return;
   }
@@ -2669,10 +2666,8 @@ function renderTodayGanttChart() {
   const idx = indexMap_(header);
   requiredCols_(idx, ["reserved_start", "reserved_end", "status", "line_user_id"]);
 
-  // 名前解決（既存）
   const userNameByLineId = buildUserNameMap_();
 
-  /** @type {{start:Date,end:Date,label:string}[]} */
   const todays = [];
 
   for (let r = 1; r < values.length; r++) {
@@ -2684,10 +2679,8 @@ function renderTodayGanttChart() {
     const e = coerceToDate_(row[idx.reserved_end]);
     if (!s || !e || e <= s) continue;
 
-    // 今日と重なるものだけ（開始が今日でも、日跨ぎも一応拾う）
     if (s >= dayEnd || e <= dayStart) continue;
 
-    // 今日の範囲にクリップ
     const cs = new Date(Math.max(s.getTime(), dayStart.getTime()));
     const ce = new Date(Math.min(e.getTime(), dayEnd.getTime()));
 
@@ -2709,12 +2702,8 @@ function renderTodayGanttChart() {
     todays.push({ start: cs, end: ce, label });
   }
 
-  // 時刻順
   todays.sort((a, b) => a.start.getTime() - b.start.getTime());
 
-  // ===== 時間軸の開始/終了を決定 =====
-  // 基本：営業時間（openMin/closeMin）
-  // ただし、当日の予約が営業時間外にある場合は、その最小〜最大まで拡張
   let minAxis = openMin;
   let maxAxis = closeMin;
 
@@ -2725,64 +2714,123 @@ function renderTodayGanttChart() {
     maxAxis = Math.max(closeMin, maxRes);
   }
 
-  // 粒度に合わせて軸を整形（開始：切り下げ / 終了：切り上げ）
   minAxis = floorToGran_(minAxis, granMin);
   maxAxis = ceilToGran_(maxAxis, granMin);
 
-  // ===== 描画 =====
   ganttSh.clear();
 
   const dateTitle = Utilities.formatDate(dayStart, tz, "yyyy年M月d日");
-  const nCols = Math.round((maxAxis - minAxis) / granMin) + 1; // 終端含む
-  const startCol = 2; // B列開始
+  const nCols = Math.round((maxAxis - minAxis) / granMin) + 1;
+  const startCol = 2;
 
-  // 1行目：日付タイトル（結合）
   ganttSh.getRange(1, startCol, 1, nCols).merge();
   ganttSh.getRange(1, startCol).setValue(dateTitle)
     .setFontSize(18).setFontWeight("bold")
     .setHorizontalAlignment("left").setVerticalAlignment("middle");
 
-  // 2行目：時間ラベル
   const timeRow = [];
   for (let t = minAxis; t <= maxAxis; t += granMin) timeRow.push(minToHHMM_(t));
+
   ganttSh.getRange(2, startCol, 1, nCols).setValues([timeRow])
-    .setHorizontalAlignment("center").setVerticalAlignment("middle")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
     .setFontSize(10);
 
   ganttSh.setFrozenRows(2);
 
-  // 列幅（時間軸）
   ganttSh.setColumnWidths(startCol, nCols, 42);
   ganttSh.setRowHeight(1, 30);
   ganttSh.setRowHeight(2, 22);
 
-  // 罫線（縦の点線っぽく）
-  const gridRows = Math.max(22, 3 + todays.length + 10);
-  const gridRange = ganttSh.getRange(2, startCol, gridRows, nCols);
-  gridRange.setBorder(null, true, null, true, true, null, "#BDBDBD", SpreadsheetApp.BorderStyle.DOTTED);
+  const barColors = [
+    "#F8B4B4",
+    "#FBD38D",
+    "#A7F3D0",
+    "#93C5FD",
+    "#D8B4FE",
+    "#FDE68A"
+  ];
 
-  // 予約バー
-  const barColor = "#E9A3A3"; // 画像に寄せたピンク
-  for (let i = 0; i < todays.length; i++) {
-    const row = 3 + i;
+  const rowEndTimes = new Array(capacity).fill(-1);
+  const rows = [];
+
+  for (const res of todays) {
+
+    const sMin = minutesOfDay_(res.start);
+    const eMin = minutesOfDay_(res.end);
+
+    let assignedRow = -1;
+
+    for (let i = 0; i < capacity; i++) {
+      if (sMin >= rowEndTimes[i]) {
+        assignedRow = i;
+        rowEndTimes[i] = eMin;
+        break;
+      }
+    }
+
+    if (assignedRow === -1) {
+      assignedRow = capacity - 1;
+    }
+
+    rows.push({ ...res, row: assignedRow });
+  }
+
+  for (let i = 0; i < capacity; i++) {
+
+    const row = 3 + (i * 2);
+
     ganttSh.setRowHeight(row, 18);
 
-    const sMin = minutesOfDay_(todays[i].start);
-    const eMin = minutesOfDay_(todays[i].end);
+    ganttSh.getRange(row, 1)
+      .setValue(`担当者${i + 1}`)
+      .setHorizontalAlignment("right")
+      .setVerticalAlignment("middle")
+      .setFontSize(11);
+  }
+
+  for (let i = 0; i < rows.length; i++) {
+
+    const r = rows[i];
+
+    const row = 3 + (r.row * 2);
+
+    const sMin = minutesOfDay_(r.start);
+    const eMin = minutesOfDay_(r.end);
 
     const colStart = startCol + Math.round((sMin - minAxis) / granMin);
     const colEnd   = startCol + Math.round((eMin - minAxis) / granMin);
 
-    const width = Math.max(1, colEnd - colStart); // [start,end) なので end-start
-    const rng = ganttSh.getRange(row, colStart, 1, width);
-    rng.setBackground(barColor);
+    const width = Math.max(1, colEnd - colStart);
 
-    // ラベルはバーの左端に
-    ganttSh.getRange(row, colStart).setValue(todays[i].label).setFontSize(10);
+    const rng = ganttSh.getRange(row, colStart, 1, width);
+
+    const color = barColors[r.row % barColors.length];
+
+    rng.setBackground(color);
+
+    ganttSh.getRange(row, colStart)
+      .setValue(r.label)
+      .setFontSize(10);
   }
 
-  // 見た目調整
-  ganttSh.getRange(1, 1, ganttSh.getMaxRows(), 1).setBackground(null); // A列は未使用
+  const gridRows = Math.max(22, 3 + (capacity * 2) + 10);
+
+  const gridRange = ganttSh.getRange(2, startCol, gridRows, nCols);
+
+  gridRange.setBorder(
+    null,
+    true,
+    null,
+    true,
+    true,
+    null,
+    "#BDBDBD",
+    SpreadsheetApp.BorderStyle.DOTTED
+  );
+
+  ganttSh.getRange(1, 1, ganttSh.getMaxRows(), 1).setBackground(null);
+
   ganttSh.setActiveSelection(ganttSh.getRange("B1"));
 }
 
