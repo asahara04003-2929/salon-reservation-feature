@@ -1211,43 +1211,67 @@ function ceilMinToGran_(min, gran){
  * 想定ヘッダー（最低限）：from, to, all_day, is_active
  * - all_day TRUE or fromが日付だけ → 当日0:00〜翌日0:00
  */
-function listBlackoutsOverlapping_(dayStart, dayEnd) {
+function listBlackoutsOverlapping_(rangeStart, rangeEnd){
+
   const sh = sh_('BLACKOUTS');
-  if (!sh) return []; // ← シート無ければ制限なし
+  if (!sh) return {};
 
-  const values = sh.getDataRange().getValues();
-  if (values.length < 2) return [];
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return {};
 
-  // ヘッダーの括弧注釈を許容
-  const header = values[0].map(v => String(v).trim().replace(/[（(].*$/, '').trim());
+  const header = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
 
-  if (idx.from === undefined) throw new Error('BLACKOUTS_MISSING_COLUMN_from');
+  if (idx.blackout_start === undefined || idx.blackout_end === undefined) return {};
 
-  const out = [];
-  for (let r = 1; r < values.length; r++) {
-    const row = values[r];
+  const n = lastRow - 1;
 
-    const isActive = (idx.is_active === undefined)
-      ? true
-      : String(row[idx.is_active] ?? '').toUpperCase() !== 'FALSE';
-    if (!isActive) continue;
+  const colStart = sh.getRange(2, idx.blackout_start+1, n, 1).getValues();
+  const colEnd   = sh.getRange(2, idx.blackout_end+1, n, 1).getValues();
 
-    const fromRaw = row[idx.from];
-    if (!fromRaw) continue;
+  const out = {};
 
-    const toRaw = (idx.to !== undefined) ? row[idx.to] : null;
-    const allDayRaw = (idx.all_day !== undefined) ? row[idx.all_day] : null;
+  for (let i=0;i<n;i++){
 
-    const norm = normalizeBlackout_(fromRaw, toRaw, allDayRaw);
-    if (!norm) continue;
+    const s = coerceToDate_(colStart[i][0]);
+    const e = coerceToDate_(colEnd[i][0]);
 
-    // dayStart-dayEnd と重なるものだけ返す
-    if (norm.from < dayEnd && norm.to > dayStart) out.push(norm);
+    if (!s || !e || e<=s) continue;
+
+    if (s >= rangeEnd || e <= rangeStart) continue;
+
+    let cur = new Date(Math.max(s, rangeStart));
+    const end = new Date(Math.min(e, rangeEnd));
+
+    while (cur < end){
+
+      const key = formatYmd_(cur);
+
+      const dayStart = new Date(cur);
+      dayStart.setHours(0,0,0,0);
+
+      const dayEnd = new Date(dayStart);
+      dayEnd.setDate(dayEnd.getDate()+1);
+
+      const sMin = minutesOfDay_( new Date(Math.max(s,dayStart)) );
+      const eMin = minutesOfDay_( new Date(Math.min(e,dayEnd)) );
+
+      if (!out[key]) out[key] = [];
+
+      out[key].push([sMin,eMin]);
+
+      cur = dayEnd;
+
+    }
+
   }
 
-  out.sort((a, b) => a.from.getTime() - b.from.getTime());
+  for (const key in out){
+    out[key] = mergeIntervals_(out[key]);
+  }
+
   return out;
+
 }
 
 function isInBlackout_(startAt, endAt, blackouts) {
@@ -2146,12 +2170,14 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
 
 // 週レンジの open windows を「SLOTS一括読み」→日別生成
 function buildOpenWindowsByDate_(rangeStart, rangeEnd, bh) {
-  const tz = "Asia/Tokyo";
+
   const nDays = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / 86400000);
 
-  // まずは全日をデフォルト営業時間で作る（定休日は空）
   const out = {};
+
+  // デフォルト営業時間
   for (let i = 0; i < nDays; i++) {
+
     const dayStart = new Date(rangeStart.getTime() + i * 86400000);
     const key = formatYmd_(dayStart);
 
@@ -2162,153 +2188,178 @@ function buildOpenWindowsByDate_(rangeStart, rangeEnd, bh) {
 
     const openMin = bh.oh * 60 + bh.om;
     const closeMin = bh.ch * 60 + bh.cm;
+
     out[key] = (closeMin > openMin) ? [[openMin, closeMin]] : [];
+
   }
 
-  // SLOTS があれば「該当日が1件でもある日」だけ SLOTS を優先
   const sh = sh_('SLOTS');
   if (!sh) return out;
 
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return out;
 
-  // ヘッダ
-  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const header = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
+
   if (idx.slot_start === undefined || idx.slot_end === undefined || idx.is_open === undefined) return out;
 
-  // 必要列だけ一括取得
   const n = lastRow - 1;
-  const colSlotStart = sh.getRange(2, idx.slot_start + 1, n, 1).getValues();
-  const colSlotEnd   = sh.getRange(2, idx.slot_end + 1, n, 1).getValues();
-  const colIsOpen    = sh.getRange(2, idx.is_open + 1, n, 1).getValues();
 
-  // 日別に集計
-  const slotsByDate = {}; // {key: [[fromMin,toMin], ...]}
-  const hasAnyByDate = new Set();
+  const colStart = sh.getRange(2, idx.slot_start+1, n, 1).getValues();
+  const colEnd   = sh.getRange(2, idx.slot_end+1, n, 1).getValues();
+  const colOpen  = sh.getRange(2, idx.is_open+1, n, 1).getValues();
 
-  for (let i = 0; i < n; i++) {
-    const isOpen = String(colIsOpen[i][0] ?? '').toUpperCase() === 'TRUE';
-    if (!isOpen) continue;
+  const slotMap = {};
 
-    const from = coerceToDate_(colSlotStart[i][0]);
-    const to   = coerceToDate_(colSlotEnd[i][0]);
-    if (!from || !to || to <= from) continue;
+  for (let i=0;i<n;i++){
 
-    // 範囲外は除外
-    if (from >= rangeEnd || to <= rangeStart) continue;
+    if (String(colOpen[i][0]).toUpperCase() !== "TRUE") continue;
 
-    const key = formatYmd_(from);
-    hasAnyByDate.add(key);
+    const s = coerceToDate_(colStart[i][0]);
+    const e = coerceToDate_(colEnd[i][0]);
 
-    const fromMin = minutesOfDay_(from);
-    const toMin = minutesOfDay_(to);
+    if (!s || !e || e<=s) continue;
 
-    if (!slotsByDate[key]) slotsByDate[key] = [];
-    slotsByDate[key].push([fromMin, toMin]);
+    if (s >= rangeEnd || e <= rangeStart) continue;
+
+    const key = formatYmd_(s);
+
+    const sMin = minutesOfDay_(s);
+    const eMin = minutesOfDay_(e);
+
+    if (!slotMap[key]) slotMap[key] = [];
+
+    slotMap[key].push([sMin,eMin]);
+
   }
 
-  // SLOTSがある日だけ上書き（同日が複数windowでもOK）
-  for (const key of hasAnyByDate) {
-    out[key] = mergeIntervals_(slotsByDate[key] || []);
+  for (const key in slotMap){
+
+    out[key] = mergeIntervals_(slotMap[key]);
+
   }
 
   return out;
+
 }
 
 // 週レンジの CONFIRMED 予約を一括取得して busy区間にする
 function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
+
   const sh = sh_(SHEET_RESERVATIONS);
   if (!sh) throw new Error(`Sheet not found: ${SHEET_RESERVATIONS}`);
 
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return {};
 
-  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
+  const header = sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
-  requiredCols_(idx, ['status', 'reserved_start', 'reserved_end']);
+
+  requiredCols_(idx, ['status','reserved_start','reserved_end']);
 
   const n = lastRow - 1;
-  const colStatus = sh.getRange(2, idx.status + 1, n, 1).getValues();
-  const colStart  = sh.getRange(2, idx.reserved_start + 1, n, 1).getValues();
-  const colEnd    = sh.getRange(2, idx.reserved_end + 1, n, 1).getValues();
+
+  const colStatus = sh.getRange(2, idx.status+1, n, 1).getValues();
+  const colStart  = sh.getRange(2, idx.reserved_start+1, n, 1).getValues();
+  const colEnd    = sh.getRange(2, idx.reserved_end+1, n, 1).getValues();
 
   const prepMin = getPreparationMinutes_();
   const bh = getBusinessHours_();
   const closeMin = bh.ch * 60 + bh.cm;
-  const out = {};
 
   const capacity = getCapacity_();
 
-  const allIntervals = [];
+  const reservations = [];
 
-  // まずすべての予約を取得（準備時間込み）
-  for (let i = 0; i < n; i++) {
-    const st = String(colStatus[i][0] || '').trim();
-    if (st !== 'CONFIRMED') continue;
+  // 予約を一度だけ読み込む
+  for (let i=0;i<n;i++){
+
+    if (String(colStatus[i][0]).trim() !== 'CONFIRMED') continue;
 
     const s = coerceToDate_(colStart[i][0]);
     const e = coerceToDate_(colEnd[i][0]);
-    if (!s || !e || e <= s) continue;
-    if (s >= rangeEnd || e <= rangeStart) continue;
 
-    // 終了 + 準備時間（close 超えは無視）
+    if (!s || !e) continue;
+
     const e2 = new Date(e.getTime());
-    if (prepMin > 0) {
-      const endMin0 = minutesOfDay_(e2);
-      if (endMin0 < closeMin) {
-        const extEndMin = Math.min(endMin0 + prepMin, closeMin);
-        const deltaMin = extEndMin - endMin0;
-        e2.setTime(e2.getTime() + deltaMin * 60 * 1000);
+
+    if (prepMin > 0){
+
+      const endMin = minutesOfDay_(e2);
+
+      if (endMin < closeMin){
+
+        const extEndMin = Math.min(endMin + prepMin, closeMin);
+        const delta = extEndMin - endMin;
+
+        e2.setTime(e2.getTime() + delta * 60000);
+
       }
     }
 
-    allIntervals.push([s, e2]);
+    reservations.push([s,e2]);
+
   }
 
-  // 日別に分割して capacity 超え部分だけ busy にする
-  const dailyMap = {}; // key: yyyy-mm-dd -> [[startMin,endMin], ...]
+  const out = {};
 
-  for (const [s, e] of allIntervals) {
-    splitIntoDailyIntervals_(s, e, dailyMap);
-  }
+  const nDays = Math.ceil((rangeEnd-rangeStart)/86400000);
 
-  // capacity 判定
-  for (const key of Object.keys(dailyMap)) {
-    const intervals = dailyMap[key];
+  for (let d=0; d<nDays; d++){
 
-    // 時間ごとのイベントに展開
+    const dayStart = new Date(rangeStart.getTime() + d*86400000);
+    const dayEnd   = new Date(dayStart.getTime() + 86400000);
+
+    const key = formatYmd_(dayStart);
+
     const events = [];
-    for (const [from, to] of intervals) {
-      events.push({ time: from, type: 'start' });
-      events.push({ time: to, type: 'end' });
+
+    for (const [s,e] of reservations){
+
+      if (s >= dayEnd || e <= dayStart) continue;
+
+      const startMin = minutesOfDay_( new Date(Math.max(s,dayStart)) );
+      const endMin   = minutesOfDay_( new Date(Math.min(e,dayEnd)) );
+
+      events.push({time:startMin,type:1});
+      events.push({time:endMin,type:-1});
+
     }
 
-    events.sort((a,b) => a.time - b.time || (a.type === 'start' ? -1 : 1));
+    if (events.length === 0){
+      out[key] = [];
+      continue;
+    }
+
+    events.sort((a,b)=>a.time-b.time || b.type-a.type);
 
     let count = 0;
-    let currentStart = null;
+    let start = null;
+
     const merged = [];
 
-    for (const ev of events) {
-      if (ev.type === 'start') {
-        count++;
-        if (count >= capacity && currentStart === null) {
-          currentStart = ev.time;
-        }
-      } else {
-        if (count >= capacity && currentStart !== null) {
-          merged.push([currentStart, ev.time]);
-          currentStart = null;
-        }
-        count--;
+    for (const ev of events){
+
+      count += ev.type;
+
+      if (count >= capacity && start === null){
+        start = ev.time;
       }
+
+      if (count < capacity && start !== null){
+        merged.push([start, ev.time]);
+        start = null;
+      }
+
     }
 
     out[key] = merged;
+
   }
 
   return out;
+
 }
 
 // 週レンジの BLACKOUTS を一括取得して busy区間にする
