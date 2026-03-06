@@ -2272,7 +2272,6 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
 
   const reservations = [];
 
-  // 予約を一度だけ読み込む
   for (let i=0;i<n;i++){
 
     if (String(colStatus[i][0]).trim() !== 'CONFIRMED') continue;
@@ -2332,7 +2331,7 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
       continue;
     }
 
-    events.sort((a,b)=>a.time-b.time || b.type-a.type);
+    events.sort((a,b)=>a.time-b.time || a.type-b.type);
 
     let count = 0;
     let start = null;
@@ -2341,13 +2340,14 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
 
     for (const ev of events){
 
+      const prev = count;
       count += ev.type;
 
-      if (count >= capacity && start === null){
+      if (prev < capacity && count >= capacity){
         start = ev.time;
       }
 
-      if (count < capacity && start !== null){
+      if (prev >= capacity && count < capacity && start !== null){
         merged.push([start, ev.time]);
         start = null;
       }
@@ -2465,27 +2465,31 @@ function mergeIntervalsWithCapacity_(intervals, capacity) {
   const events = [];
   for (const [s, e] of intervals) {
     if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) continue;
-    events.push({ time: s, type: 'start' });
-    events.push({ time: e, type: 'end' });
+    events.push({ time: s, type: 1 });
+    events.push({ time: e, type: -1 });
   }
 
-  events.sort((a, b) => a.time - b.time || (a.type === 'start' ? -1 : 1));
+  // start → end の順
+  events.sort((a, b) => a.time - b.time || b.type - a.type);
 
   const out = [];
   let count = 0;
-  let currentStart = null;
+  let start = null;
 
   for (const ev of events) {
-    if (ev.type === 'start') {
-      count++;
-      if (count === capacity && currentStart === null) currentStart = ev.time;
-    } else {
-      if (count === capacity && currentStart !== null) {
-        out.push([currentStart, ev.time]);
-        currentStart = null;
-      }
-      count--;
+
+    const prev = count;
+    count += ev.type;
+
+    if (prev < capacity && count >= capacity) {
+      start = ev.time;
     }
+
+    if (prev >= capacity && count < capacity && start !== null) {
+      out.push([start, ev.time]);
+      start = null;
+    }
+
   }
 
   return out;
