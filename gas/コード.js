@@ -1662,10 +1662,15 @@ function getAvailabilityRangeByDuration_(fromYmd, days, planId, durationMinOverr
   }
   if (!Number.isFinite(durationMin) || durationMin <= 0) throw new Error('INVALID_duration_min');
 
-  const nDays = Number.isFinite(days) && days > 0 && days <= 14 ? Math.floor(days) : 7;
-
+  // days
   const fromStart = parseYmdAsLocalDate_(fromYmd);
-  const rangeEnd = new Date(fromStart.getTime() + nDays * 24 * 60 * 60 * 1000);
+
+  // ★1ヶ月後
+  const rangeEnd = new Date(fromStart);
+  rangeEnd.setMonth(rangeEnd.getMonth() + 1);
+
+  // ★実際の日数
+  const nDays = Math.floor((rangeEnd - fromStart) / 86400000);
 
   const granMin = getGranularityMinutes_();
   const prepMin = getPreparationMinutes_();
@@ -2195,11 +2200,14 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
   if (!Number.isFinite(durationMin) || durationMin <= 0) throw new Error('INVALID_duration_min');
 
   // days
-  const nDays = Number.isFinite(days) && days > 0 && days <= 14 ? Math.floor(days) : 7;
-
-  // range
   const fromStart = parseYmdAsLocalDate_(fromYmd);
-  const rangeEnd = new Date(fromStart.getTime() + nDays * 24 * 60 * 60 * 1000);
+
+  // ★1ヶ月後
+  const rangeEnd = new Date(fromStart);
+  rangeEnd.setMonth(rangeEnd.getMonth() + 1);
+
+  // ★実際の日数
+  const nDays = Math.floor((rangeEnd - fromStart) / 86400000);
 
   const granMin = getGranularityMinutes_();
   const bh = getBusinessHours_();
@@ -2208,7 +2216,13 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
 
   // ★予約可能期限（週単位）
   const bookingWeeks = getBookingWindowWeeks_();
-  const bookingLimit = new Date(now.getTime() + bookingWeeks * 7 * 24 * 60 * 60 * 1000);
+
+  let bookingLimit = null;
+  if (bookingWeeks !== "" && bookingWeeks !== null && Number(bookingWeeks) > 0) {
+    bookingLimit = new Date(now);
+    bookingLimit.setHours(0,0,0,0);
+    bookingLimit.setDate(bookingLimit.getDate() + Number(bookingWeeks) * 7);
+  }
 
   // ✅ しきい値：現在日時 + granularity_min
   const threshold = new Date(now.getTime() + granMin * 60 * 1000);
@@ -2243,7 +2257,7 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
     }
 
     // ★予約受付期間を超えた場合
-    if (dayStart.getTime() > bookingLimit.getTime()) {
+    if (bookingLimit && dayStart.getTime() > bookingLimit.getTime()) {
       windowsByDate[key] = [];
       continue;
     }

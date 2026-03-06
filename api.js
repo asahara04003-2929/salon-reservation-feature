@@ -256,11 +256,54 @@ function wireEvents() {
   });
 
   $("btnPrevWeek")?.addEventListener("click", async () => {
+
+    const prevWeekStart = new Date(state.weekStart);
+
     shiftWeek(-7);
+
+    if (prevWeekStart.getTime() === state.weekStart.getTime()) return;
+
+    const viewEnd = addDays(state.weekStart, 6);
+
+    if (
+      state.availabilityCache &&
+      state.cacheFrom &&
+      state.cacheTo &&
+      state.weekStart >= state.cacheFrom &&
+      viewEnd <= state.cacheTo
+    ) {
+      renderWeekFromCache_();
+      updateWeekButtons_();
+      return;
+    }
+
     await loadAvailabilityWeek();
   });
+
   $("btnNextWeek")?.addEventListener("click", async () => {
+
+    const prevWeekStart = new Date(state.weekStart);
+
     shiftWeek(7);
+
+    if (prevWeekStart.getTime() === state.weekStart.getTime()) return;
+
+    const viewEnd = addDays(state.weekStart, 6);
+
+    // ★ここに追加
+    console.log("cache", state.cacheFrom, state.cacheTo, state.weekStart);
+
+    if (
+      state.cacheFrom &&
+      state.cacheTo &&
+      ymd(state.weekStart) >= ymd(state.cacheFrom) &&
+      ymd(viewEnd) <= ymd(state.cacheTo)
+    ) {
+      renderWeekFromCache_();
+      updateWeekButtons_();
+      return;
+    }
+
     await loadAvailabilityWeek();
   });
   $("btnToday")?.addEventListener("click", async () => {
@@ -685,7 +728,7 @@ function shiftWeek(days){
   state.weekStart = next;
 }
 function canShiftNextWeek_(){
-  if (!state.bookingWindowWeeks) return true;
+  if (state.bookingWindowWeeks == null) return true;
 
   const today = new Date();
   today.setHours(0,0,0,0);
@@ -768,19 +811,46 @@ async function loadAvailabilityWeek() {
     return;
   }
 
-  setStatus("空き枠（週）を取得中…");
-
-  $("slotHint") && ($("slotHint").textContent = "");
-  $("timeTableHead") && ($("timeTableHead").innerHTML = "");
-  $("timeTableBody") && ($("timeTableBody").innerHTML = "");
-
   if (!state.weekStart) state.weekStart = startOfView(new Date());
 
+  const viewEnd = addDays(state.weekStart, 6);
+
+  // ★日付文字列で比較（バグ防止）
+  const ws = ymd(state.weekStart);
+  const ve = ymd(viewEnd);
+  const cf = state.cacheFrom ? ymd(state.cacheFrom) : null;
+  const ct = state.cacheTo ? ymd(state.cacheTo) : null;
+
+  if (
+    state.availabilityCache &&
+    cf &&
+    ct &&
+    ws >= cf &&
+    ve <= ct
+  ) {
+    renderWeekFromCache_();
+    updateWeekButtons_();
+    return;
+  }
+
+  setStatus("空き枠（1ヶ月）を取得中…");
+
   try {
+
+    let fetchFrom;
+
+    if (!state.cacheFrom) {
+      fetchFrom = state.weekStart;
+    } else if (state.weekStart < state.cacheFrom) {
+      fetchFrom = state.weekStart;
+    } else {
+      fetchFrom = addDays(state.cacheTo, 1);
+    }
+
     const r = await apiGet({
       action: "availability_range_materials",
-      from: ymd(state.weekStart),
-      days: "7",
+      from: ymd(fetchFrom),
+      days: "30",
       duration_min: String(state.totalDurationMin),
     });
 
@@ -790,29 +860,37 @@ async function loadAvailabilityWeek() {
     state.granMin = r.granularity_min;
     state.businessOpen = r.business_open;
     state.businessClose = r.business_close;
+    state.bookingWindowWeeks =
+      r.booking_window_weeks === "" || r.booking_window_weeks == null
+        ? null
+        : Number(r.booking_window_weeks);
 
-    // ★追加（予約可能週）
-    state.bookingWindowWeeks = r.booking_window_weeks ?? null;
+    if (!state.availabilityCache) {
 
-    $("slotHint") && ($("slotHint").textContent = "");
+      state.availabilityCache = r;
 
-    const dayResults = [...Array(7)].map((_, i) => {
-      const d = addDays(state.weekStart, i);
-      const key = ymd(d);
+      const start = new Date(r.from);
+      start.setHours(0,0,0,0);
 
-      const windows = (r.windows_by_date && r.windows_by_date[key]) ? r.windows_by_date[key] : [];
-      const busy    = (r.busy_by_date && r.busy_by_date[key]) ? r.busy_by_date[key] : [];
-      const minStartMin = (r.min_start_min_by_date) ? r.min_start_min_by_date[key] : null;
+      state.cacheFrom = start;
+      state.cacheTo = addDays(start, r.days - 1);
 
-      const free = subtractIntervals_(windows, busy);
-      const starts = buildStartMins_(free, Number(r.granularity_min), Number(r.required_duration_min), minStartMin);
+    } else {
 
-      const slotSet = new Set(starts.map(min => minToHHMM_(min)));
+      Object.assign(state.availabilityCache.windows_by_date, r.windows_by_date);
+      Object.assign(state.availabilityCache.busy_by_date, r.busy_by_date);
+      Object.assign(state.availabilityCache.min_start_min_by_date, r.min_start_min_by_date);
 
-      return { date: d, slotSet };
-    });
+      const newStart = new Date(r.from);
+      newStart.setHours(0,0,0,0);
 
-    renderWeekTable(dayResults);
+      const newEnd = addDays(newStart, r.days - 1);
+
+      if (newStart < state.cacheFrom) state.cacheFrom = newStart;
+      if (newEnd > state.cacheTo) state.cacheTo = newEnd;
+    }
+
+    renderWeekFromCache_();
     updateWeekButtons_();
 
     const from = ymd(state.weekStart);
@@ -820,11 +898,45 @@ async function loadAvailabilityWeek() {
     $("weekLabel") && ($("weekLabel").textContent = `${from} 〜 ${to}`);
 
     setStatus("空き枠を選択してください");
+
   } catch (e) {
     console.error(e);
     setStatus("空き枠取得に失敗");
     setError(String(e?.message || e));
   }
+}
+
+// キャッシュ描画関数
+function renderWeekFromCache_(){
+
+  const r = state.availabilityCache;
+
+  const dayResults = [...Array(7)].map((_, i) => {
+    const d = addDays(state.weekStart, i);
+    const key = ymd(d);
+
+    const windows = (r.windows_by_date && r.windows_by_date[key]) ? r.windows_by_date[key] : [];
+    const busy    = (r.busy_by_date && r.busy_by_date[key]) ? r.busy_by_date[key] : [];
+    const minStartMin = (r.min_start_min_by_date) ? r.min_start_min_by_date[key] : null;
+
+    const free = subtractIntervals_(windows, busy);
+    const starts = buildStartMins_(
+      free,
+      Number(r.granularity_min),
+      Number(r.required_duration_min),
+      minStartMin
+    );
+
+    const slotSet = new Set(starts.map(min => minToHHMM_(min)));
+
+    return { date: d, slotSet };
+  });
+
+  renderWeekTable(dayResults);
+
+  const from = ymd(state.weekStart);
+  const to = ymd(addDays(state.weekStart, 6));
+  $("weekLabel") && ($("weekLabel").textContent = `${from} 〜 ${to}`);
 }
 
 function updateWeekButtons_(){
