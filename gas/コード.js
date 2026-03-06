@@ -238,19 +238,6 @@ function buildUserNameMap_() {
   return map;
 }
 
-// 準備時間（分）を返すヘルパー
-function getPreparationMinutes_() {
-  const cfg = getConfigMap_();
-  const granMin = getGranularityMinutes_();
-
-  const lotRaw = (cfg.preparation_slot || "").toString().trim();
-  const lot = Number(lotRaw);
-
-  if (!Number.isFinite(lot) || lot <= 0) return 0;
-  if (!Number.isFinite(granMin) || granMin <= 0) return 0;
-
-  return lot * granMin;
-}
 
 
 /** =========================
@@ -337,6 +324,7 @@ function doPost(e) {
       }
 
       case 'reserve': {
+        const capacity = getCapacity_(); // GAS CONFIG から capacity を取得
         const result = createReservation_(body);
         bumpCacheVer_();
 
@@ -768,7 +756,8 @@ function createReservation_(body) {
   lock.tryLock(15000);
 
   try {
-    if (hasConflict_(startAt, endAt)) throw new Error('TIME_SLOT_TAKEN');
+    const capacity = getCapacity_(); // GAS CONFIG から capacity を取得
+    if (hasConflict_(startAt, endAt, capacity)) throw new Error('TIME_SLOT_TAKEN');
 
     const sh = sh_(SHEET_RESERVATIONS);
     const values = sh.getDataRange().getValues();
@@ -963,7 +952,7 @@ function cancelReservation_(body) {
 /** =========================
  *  Conflict Check (minimal)
  * ========================= */
-function hasConflict_(startAt, endAt) {
+function hasConflict_(startAt, endAt, capacity = 1) {
   const sh = sh_(SHEET_RESERVATIONS);
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return false;
@@ -996,6 +985,8 @@ function hasConflict_(startAt, endAt) {
   const a0 = startAt.getTime();
   const a1 = candEnd.getTime();
 
+  let overlapCount = 0;
+
   for (let i=0; i<n; i++){
     if (String(colStatus[i][0]).trim() !== 'CONFIRMED') continue;
     const s = coerceToDate_(colStart[i][0]);
@@ -1015,8 +1006,12 @@ function hasConflict_(startAt, endAt) {
       }
     }
 
-    if (a0 < e2.getTime() && a1 > s.getTime()) return true;
+    if (a0 < e2.getTime() && a1 > s.getTime()) {
+      overlapCount++;
+      if (overlapCount >= capacity) return true; // capacity超えたらNG
+    }
   }
+
   return false;
 }
 
@@ -1299,36 +1294,6 @@ function isDateOnlyInput_(v) {
   return false;
 }
 
-function getGranularityMinutes_() {
-  // CONFIGシート A列=キー, B列=値 でもOKにしたいなら拡張できるけど、
-  // まずは A1: granularity_min / B1: 30 で簡単運用
-  const sh = sh_('CONFIG');
-  if (!sh) return 30;
-
-  const key = String(sh.getRange('A1').getValue() || '').trim();
-  const val = sh.getRange('B1').getValue();
-
-  if (key !== 'granularity_min') return 30;
-  const n = Number(val);
-  return Number.isFinite(n) && n > 0 ? n : 30;
-}
-
-function getBookingWindowWeeks_() {
-  const sh = sh_('CONFIG');
-  if (!sh) return 5;
-
-  const values = sh.getRange('A:B').getValues();
-
-  for (const row of values) {
-    const key = String(row[0] || '').trim();
-    if (key === 'booking_window_weeks') {
-      const n = Number(row[1]);
-      return Number.isFinite(n) && n > 0 ? n : 8;
-    }
-  }
-
-  return null;
-}
 
 function listOpenWindowsForDate_(dayStart, dayEnd) {
   // 1) SLOTS がある＆当日データがあるならそれを使う（手動上書き用）
@@ -1899,10 +1864,7 @@ function pushLineMessage_(lineUserId, text) {
   }
 }
 
-function getAdminPhone_() {
-  const cfg = getConfigMap_();
-  return (cfg.admin_phone || "").trim();
-}
+
 
 
 /**
@@ -2177,7 +2139,8 @@ function getAvailabilityRangeMaterialsByDuration_(fromYmd, days, planId, duratio
     booking_window_weeks: bookingWeeks,
     windows_by_date: windowsByDate,
     busy_by_date: busyByDate,
-    min_start_min_by_date: minStartMinByDate
+    min_start_min_by_date: minStartMinByDate,
+    capacity: getCapacity_()
   };
 }
 
@@ -2263,21 +2226,23 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
 
   const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(String);
   const idx = indexMap_(header);
-
   requiredCols_(idx, ['status', 'reserved_start', 'reserved_end']);
 
   const n = lastRow - 1;
-
   const colStatus = sh.getRange(2, idx.status + 1, n, 1).getValues();
   const colStart  = sh.getRange(2, idx.reserved_start + 1, n, 1).getValues();
   const colEnd    = sh.getRange(2, idx.reserved_end + 1, n, 1).getValues();
 
-  const out = {};
-
   const prepMin = getPreparationMinutes_();
   const bh = getBusinessHours_();
   const closeMin = bh.ch * 60 + bh.cm;
+  const out = {};
 
+  const capacity = getCapacity_();
+
+  const allIntervals = [];
+
+  // まずすべての予約を取得（準備時間込み）
   for (let i = 0; i < n; i++) {
     const st = String(colStatus[i][0] || '').trim();
     if (st !== 'CONFIRMED') continue;
@@ -2285,10 +2250,9 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
     const s = coerceToDate_(colStart[i][0]);
     const e = coerceToDate_(colEnd[i][0]);
     if (!s || !e || e <= s) continue;
-
     if (s >= rangeEnd || e <= rangeStart) continue;
 
-    // ✅ 予約の「busy」は、終了に準備時間を足す（ただし close を跨ぐ準備は無視）
+    // 終了 + 準備時間（close 超えは無視）
     const e2 = new Date(e.getTime());
     if (prepMin > 0) {
       const endMin0 = minutesOfDay_(e2);
@@ -2299,10 +2263,50 @@ function buildConfirmedBusyByDate_(rangeStart, rangeEnd) {
       }
     }
 
-    splitIntoDailyIntervals_(s, e2, out);
+    allIntervals.push([s, e2]);
   }
 
-  for (const k of Object.keys(out)) out[k] = mergeIntervals_(out[k]);
+  // 日別に分割して capacity 超え部分だけ busy にする
+  const dailyMap = {}; // key: yyyy-mm-dd -> [[startMin,endMin], ...]
+
+  for (const [s, e] of allIntervals) {
+    splitIntoDailyIntervals_(s, e, dailyMap);
+  }
+
+  // capacity 判定
+  for (const key of Object.keys(dailyMap)) {
+    const intervals = dailyMap[key];
+
+    // 時間ごとのイベントに展開
+    const events = [];
+    for (const [from, to] of intervals) {
+      events.push({ time: from, type: 'start' });
+      events.push({ time: to, type: 'end' });
+    }
+
+    events.sort((a,b) => a.time - b.time || (a.type === 'start' ? -1 : 1));
+
+    let count = 0;
+    let currentStart = null;
+    const merged = [];
+
+    for (const ev of events) {
+      if (ev.type === 'start') {
+        count++;
+        if (count >= capacity && currentStart === null) {
+          currentStart = ev.time;
+        }
+      } else {
+        if (count >= capacity && currentStart !== null) {
+          merged.push([currentStart, ev.time]);
+          currentStart = null;
+        }
+        count--;
+      }
+    }
+
+    out[key] = merged;
+  }
 
   return out;
 }
@@ -2403,6 +2407,39 @@ function mergeIntervals_(intervals) {
   return out;
 }
 
+// 新規：capacity対応版 merge（buildOpenWindowsByDate_専用）
+function mergeIntervalsWithCapacity_(intervals, capacity) {
+  if (!intervals || intervals.length === 0) return [];
+
+  const events = [];
+  for (const [s, e] of intervals) {
+    if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s) continue;
+    events.push({ time: s, type: 'start' });
+    events.push({ time: e, type: 'end' });
+  }
+
+  events.sort((a, b) => a.time - b.time || (a.type === 'start' ? -1 : 1));
+
+  const out = [];
+  let count = 0;
+  let currentStart = null;
+
+  for (const ev of events) {
+    if (ev.type === 'start') {
+      count++;
+      if (count === capacity && currentStart === null) currentStart = ev.time;
+    } else {
+      if (count === capacity && currentStart !== null) {
+        out.push([currentStart, ev.time]);
+        currentStart = null;
+      }
+      count--;
+    }
+  }
+
+  return out;
+}
+
 function parseBirthdayToDate_(birthdayRaw) {
   if (!birthdayRaw) return null;
 
@@ -2464,16 +2501,72 @@ function getAllowedGenders_() {
     .filter(Boolean);
 }
 
+function getAdminLineUserId_() {
+  const cfg = getConfigMap_();
+  return String(cfg.admin_line_user_id || "").trim();
+}
+
+// 準備時間（分）を返すヘルパー
+function getPreparationMinutes_() {
+  const cfg = getConfigMap_();
+  const granMin = getGranularityMinutes_();
+
+  const lotRaw = (cfg.preparation_slot || "").toString().trim();
+  const lot = Number(lotRaw);
+
+  if (!Number.isFinite(lot) || lot <= 0) return 0;
+  if (!Number.isFinite(granMin) || granMin <= 0) return 0;
+
+  return lot * granMin;
+}
+
+function getGranularityMinutes_() {
+  // CONFIGシート A列=キー, B列=値 でもOKにしたいなら拡張できるけど、
+  // まずは A1: granularity_min / B1: 30 で簡単運用
+  const sh = sh_('CONFIG');
+  if (!sh) return 30;
+
+  const key = String(sh.getRange('A1').getValue() || '').trim();
+  const val = sh.getRange('B1').getValue();
+
+  if (key !== 'granularity_min') return 30;
+  const n = Number(val);
+  return Number.isFinite(n) && n > 0 ? n : 30;
+}
+
+function getBookingWindowWeeks_() {
+  const sh = sh_('CONFIG');
+  if (!sh) return 5;
+
+  const values = sh.getRange('A:B').getValues();
+
+  for (const row of values) {
+    const key = String(row[0] || '').trim();
+    if (key === 'booking_window_weeks') {
+      const n = Number(row[1]);
+      return Number.isFinite(n) && n > 0 ? n : 8;
+    }
+  }
+
+  return null;
+}
+
+function getAdminPhone_() {
+  const cfg = getConfigMap_();
+  return (cfg.admin_phone || "").trim();
+}
+
+function getCapacity_() {
+  const n = Number(getConfigMap_().capacity || 0);
+  return n > 0 ? n : 1;
+}
+
 function isGenderAllowed_(gender, allowed) {
   if (!allowed || allowed.length === 0) return true; // 制限なし
   const g = String(gender || "").trim().toLowerCase();
   return allowed.includes(g);
 }
 
-function getAdminLineUserId_() {
-  const cfg = getConfigMap_();
-  return String(cfg.admin_line_user_id || "").trim();
-}
 
 
 function renderTodayGanttChart() {

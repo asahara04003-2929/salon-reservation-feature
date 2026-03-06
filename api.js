@@ -919,7 +919,10 @@ function renderWeekFromCache_(){
     const busy    = (r.busy_by_date && r.busy_by_date[key]) ? r.busy_by_date[key] : [];
     const minStartMin = (r.min_start_min_by_date) ? r.min_start_min_by_date[key] : null;
 
+    // ★ busy を引く
     const free = subtractIntervals_(windows, busy);
+
+    // ★ freeから開始時刻生成
     const starts = buildStartMins_(
       free,
       Number(r.granularity_min),
