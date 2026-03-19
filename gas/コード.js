@@ -125,7 +125,7 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
 
     for (let i = 0; i < n; i++) {
       const status = String(colStatus[i][0] || "");
-      if (status !== "CONFIRMED") continue;
+      if (status == "CANCELED") continue;
 
       const start = coerceToDate_(colStart[i][0]);
       if (!start) continue;
