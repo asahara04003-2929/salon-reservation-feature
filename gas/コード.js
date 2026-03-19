@@ -133,8 +133,12 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
       // 当月外は除外
       if (start < firstDay || start > lastDay) continue;
 
+      const end = coerceToDate_(resSh.getRange(2, ridx.reserved_end + 1, n, 1).getValues()[i][0]);
+
       const dayKey = formatYmd_(start);
-      const hhmm = formatHm_(start);
+
+      const startHm = formatHm_(start);
+      const endHm   = end ? formatHm_(end) : "";
 
       const lineUserId = String(colLineId[i][0] || "").trim();
 
@@ -150,7 +154,12 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
         planName = String(colPlanNameSnap[i][0] || "").trim();
       }
 
-      const text = `${hhmm} ${customer}${planName ? " " + planName : ""}`.trim();
+      const text = [
+        `${startHm} - ${endHm}`,
+        customer,
+        planName,
+        "---------------------"
+      ].join("\n");
 
       if (!byDay[dayKey]) byDay[dayKey] = [];
       byDay[dayKey].push(text);
