@@ -14,9 +14,9 @@ const SHEET_TODAY_GANTT = "TODAY_GANTT_CHART";
 
 // CALENDARの描画位置定義
 const CAL_THIS_START_ROW = 4;   // 今月カレンダー本体の開始行（B4）
-const CAL_NEXT_START_ROW = 12;  // ★来月カレンダー本体の開始行（B??）←ここだけ調整してね
+const CAL_NEXT_START_ROW = 13;  // ★来月カレンダー本体の開始行（B??）←ここだけ調整してね
 const CAL_THIS_TITLE_CELL = "B2";   // 今月タイトルを出すセル（左上）
-const CAL_NEXT_TITLE_CELL = "B10";  // 来月タイトルを出すセル（左上）←ここだけ調整してね
+const CAL_NEXT_TITLE_CELL = "B11";  // 来月タイトルを出すセル（左上）←ここだけ調整してね
 const CAL_START_COL = 2;        // B列
 const CAL_COLS = 7;             // 日〜土
 
@@ -84,7 +84,7 @@ function renderOneMonthCalendar_(calSh, resSh, year, month, startRow, titleCellA
   const weeks = Math.ceil(totalCells / 7); // 5 or 6
 
   // 表示範囲クリア（B?:H?）
-  const clearRange = calSh.getRange(startRow, CAL_START_COL, weeks, CAL_COLS);
+  const clearRange = calSh.getRange(startRow, CAL_START_COL, 6, CAL_COLS);
   clearRange.clearContent();
   clearRange.setVerticalAlignment("top");
   clearRange.setWrap(true);
