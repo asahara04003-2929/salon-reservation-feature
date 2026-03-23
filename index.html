@@ -1,6 +1,20 @@
 <!doctype html>
+<!-- <html  class="light" lang="ja"> -->
 <html lang="ja">
 <head>
+  <script>
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const theme = params.get('theme_color');
+
+      const themes = ['light','dark','formal','friendly','luxury','resort','sunset'];
+
+      const finalTheme = themes.includes(theme) ? theme : 'light';
+
+      document.documentElement.classList.remove(...themes);
+      document.documentElement.classList.add(finalTheme);
+    })();
+  </script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#111827" />
@@ -16,11 +30,9 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
   <script defer src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-  <!-- テーマカラーの切り替え
-  ライトカラー：light_theme_style.css
-  ダークカラー：dark_theme_style.css -->
-  <link rel="stylesheet" href="./light_theme_style.css" />
-  <!-- <link rel="stylesheet" href="./dark_theme_style.css" /> -->
+  <!-- CSS -->
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
 </head>
 <body>
   <div id="loadingOverlay" class="loadingOverlay hidden" aria-busy="true" aria-live="polite">

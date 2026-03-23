@@ -1,0 +1,418 @@
+/* ライトテーマ */
+:root.light{
+  --bg: #fff7fb;
+  --card: #ffffff;
+  --text: #2b2b2b;
+  --muted: #7a6f78;
+
+  /* 基本カラー */
+  --white: #ffffff;
+  --black: #000000;
+
+  /* ライン・ボーダー */
+  --line: rgba(236,72,153,.18);
+  --borderSoft: rgba(148,163,184,.18);
+  --borderSoftStrong: rgba(148,163,184,.22);
+  --borderSoftLight: rgba(148,163,184,.12);
+  --borderDashed: rgba(148,163,184,.18);
+
+  /* プライマリ */
+  --primary: #ec4899;
+  --primaryText: rgba(236,72,153,.95);
+  --primaryLine: rgba(236,72,153,.45);
+  --primaryBg: rgba(236,72,153,.30);
+  --primaryBgStrong: rgba(236,72,153,.15);
+
+  /* その他カラー */
+  --danger: #ef4444;
+  --dangerLine: rgba(239,68,68,.35);
+  --dangerBg: rgba(239,68,68,.10);
+  --dangerBgStrong: rgba(239,68,68,.12);
+
+  --warn: #f59e0b;
+
+  /* グレー系 */
+  --grayText: rgba(148,163,184,.85);
+  --grayTextStrong: rgba(148,163,184,.9);
+  --grayBg: rgba(2,6,23,.25);
+  --grayBorder: rgba(148,163,184,.25);
+
+  /* UI用 */
+  --ring: rgba(236,72,153,.20);
+  --shadow: 0 10px 24px rgba(31,41,55,.10);
+  --shadowStrong: 0 12px 28px rgba(0,0,0,.35);
+
+  /* オーバーレイ */
+  --overlay: rgba(0,0,0,.45);
+  --overlayLight: rgba(0,0,0,.35);
+
+  /* ガラス系 */
+  --glass: rgba(255,255,255,.78);
+  --glassStrong: rgba(255,255,255,.90);
+  --glassSoft: rgba(255,255,255,.85);
+  --glassHeader: rgba(255,255,255,.92);
+
+  /* 背景グラデーション */
+  --bgGradientStart: #ffffff;  /* light */
+
+  --radius: 16px;
+}
+
+/* ダークテーマ */
+:root.dark{
+  --bg: #0b1220;
+  --card: #0f172a;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+
+  /* 基本カラー */
+  --white: #ffffff;
+  --black: #000000;
+
+  /* ライン・ボーダー */
+  --line: rgba(148,163,184,.18);
+  --borderSoft: rgba(148,163,184,.18);
+  --borderSoftStrong: rgba(148,163,184,.22);
+  --borderSoftLight: rgba(148,163,184,.12);
+  --borderDashed: rgba(148,163,184,.18);
+
+  /* プライマリ */
+  --primary: #22c55e;
+  --primaryText: rgba(34,197,94,.95);
+  --primaryLine: rgba(34,197,94,.45);
+  --primaryBg: rgba(34,197,94,.30);
+  --primaryBgStrong: rgba(34,197,94,.15);
+
+  /* その他カラー */
+  --danger: #ef4444;
+  --dangerLine: rgba(239,68,68,.35);
+  --dangerBg: rgba(239,68,68,.10);
+  --dangerBgStrong: rgba(239,68,68,.12);
+
+  --warn: #f59e0b;
+
+  /* グレー系 */
+  --grayText: rgba(148,163,184,.85);
+  --grayTextStrong: rgba(148,163,184,.9);
+  --grayBg: rgba(2,6,23,.55);
+  --grayBorder: rgba(148,163,184,.25);
+
+  /* UI用 */
+  --ring: rgba(34,197,94,.20);
+  --shadow: 0 10px 24px rgba(0,0,0,.25);
+  --shadowStrong: 0 12px 28px rgba(0,0,0,.45);
+
+  /* オーバーレイ */
+  --overlay: rgba(0,0,0,.45);
+  --overlayLight: rgba(0,0,0,.35);
+
+  /* ガラス系 */
+  --glass: rgba(11,18,32,.78);
+  --glassStrong: rgba(15,23,42,.90);
+  --glassSoft: rgba(15,23,42,.85);
+  --glassHeader: rgba(11,18,32,.92);
+
+  /* 背景グラデーション */
+  --bgGradientStart: #020617;  /* dark */
+
+  --radius: 16px;
+}
+
+/* フォーマルテーマ */
+:root.formal{
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+
+  /* 基本カラー */
+  --white: #ffffff;
+  --black: #000000;
+
+  /* ライン・ボーダー */
+  --line: rgba(100,116,139,.18);
+  --borderSoft: rgba(100,116,139,.18);
+  --borderSoftStrong: rgba(100,116,139,.22);
+  --borderSoftLight: rgba(100,116,139,.12);
+  --borderDashed: rgba(100,116,139,.18);
+
+  /* プライマリ */
+  --primary: #1e3a8a;
+  --primaryText: rgba(24, 46, 109, 0.95);
+  --primaryLine: rgba(30,58,138,.45);
+  --primaryBg: rgba(30,58,138,.30);
+  --primaryBgStrong: rgba(30,58,138,.15);
+
+  /* その他カラー */
+  --danger: #ef4444;
+  --dangerLine: rgba(239,68,68,.35);
+  --dangerBg: rgba(239,68,68,.10);
+  --dangerBgStrong: rgba(239,68,68,.12);
+
+  --warn: #f59e0b;
+
+  /* グレー系 */
+  --grayText: rgba(100,116,139,.85);
+  --grayTextStrong: rgba(100,116,139,.9);
+  --grayBg: rgba(241,245,249,.8);
+  --grayBorder: rgba(100,116,139,.25);
+
+  /* UI用 */
+  --ring: rgba(30,58,138,.20);
+  --shadow: 0 10px 24px rgba(15,23,42,.08);
+  --shadowStrong: 0 12px 28px rgba(0,0,0,.25);
+
+  /* オーバーレイ */
+  --overlay: rgba(0,0,0,.45);
+  --overlayLight: rgba(0,0,0,.35);
+
+  /* ガラス系 */
+  --glass: rgba(255,255,255,.78);
+  --glassStrong: rgba(255,255,255,.92);
+  --glassSoft: rgba(255,255,255,.85);
+  --glassHeader: rgba(255,255,255,.95);
+
+  /* 背景グラデーション */
+  --bgGradientStart: #ffffff;
+
+  --radius: 16px;
+}
+
+/* フレンドリーテーマ */
+:root.friendly{
+  --bg: #fff7ed;
+  --card: #ffffff;
+  --text: #3f3f46;
+  --muted: #71717a;
+
+  /* 基本カラー */
+  --white: #ffffff;
+  --black: #000000;
+
+  /* ライン・ボーダー */
+  --line: rgba(161,161,170,.18);
+  --borderSoft: rgba(161,161,170,.18);
+  --borderSoftStrong: rgba(161,161,170,.22);
+  --borderSoftLight: rgba(161,161,170,.12);
+  --borderDashed: rgba(161,161,170,.18);
+
+  /* プライマリ */
+  --primary: #f59e0b;
+  --primaryText: rgba(138, 90, 6, 0.95);
+  --primaryLine: rgba(245,158,11,.45);
+  --primaryBg: rgba(245,158,11,.30);
+  --primaryBgStrong: rgba(245,158,11,.15);
+
+  /* その他カラー */
+  --danger: #ef4444;
+  --dangerLine: rgba(239,68,68,.35);
+  --dangerBg: rgba(239,68,68,.10);
+  --dangerBgStrong: rgba(239,68,68,.12);
+
+  --warn: #f59e0b;
+
+  /* グレー系 */
+  --grayText: rgba(113,113,122,.85);
+  --grayTextStrong: rgba(113,113,122,.9);
+  --grayBg: rgba(255,237,213,.6);
+  --grayBorder: rgba(161,161,170,.25);
+
+  /* UI用 */
+  --ring: rgba(245,158,11,.20);
+  --shadow: 0 10px 24px rgba(0,0,0,.08);
+  --shadowStrong: 0 12px 28px rgba(0,0,0,.25);
+
+  /* オーバーレイ */
+  --overlay: rgba(0,0,0,.45);
+  --overlayLight: rgba(0,0,0,.35);
+
+  /* ガラス系 */
+  --glass: rgba(255,255,255,.8);
+  --glassStrong: rgba(255,255,255,.92);
+  --glassSoft: rgba(255,255,255,.88);
+  --glassHeader: rgba(255,255,255,.95);
+
+  /* 背景グラデーション */
+  --bgGradientStart: #fffaf0;
+
+  --radius: 16px;
+}
+
+
+/* ラグジュアリーテーマ */
+:root.luxury{
+  --bg: #faf5ff;
+  --card: #ffffff;
+  --text: #3b0764;
+  --muted: #6b21a8;
+
+  /* 基本カラー */
+  --white: #ffffff;
+  --black: #000000;
+
+  /* ライン・ボーダー */
+  --line: rgba(192,132,252,.18);
+  --borderSoft: rgba(192,132,252,.18);
+  --borderSoftStrong: rgba(192,132,252,.22);
+  --borderSoftLight: rgba(192,132,252,.12);
+  --borderDashed: rgba(192,132,252,.18);
+
+  /* プライマリ */
+  --primary: #a21caf;
+  --primaryText: rgba(118, 19, 128, 0.95);
+  --primaryLine: rgba(162,28,175,.45);
+  --primaryBg: rgba(162,28,175,.30);
+  --primaryBgStrong: rgba(162,28,175,.15);
+
+  /* その他カラー */
+  --danger: #ef4444;
+  --dangerLine: rgba(239,68,68,.35);
+  --dangerBg: rgba(239,68,68,.10);
+  --dangerBgStrong: rgba(239,68,68,.12);
+
+  --warn: #f59e0b;
+
+  /* グレー系 */
+  --grayText: rgba(107,33,168,.85);
+  --grayTextStrong: rgba(107,33,168,.9);
+  --grayBg: rgba(243,232,255,.6);
+  --grayBorder: rgba(192,132,252,.25);
+
+  /* UI用 */
+  --ring: rgba(162,28,175,.20);
+  --shadow: 0 10px 24px rgba(0,0,0,.08);
+  --shadowStrong: 0 12px 28px rgba(0,0,0,.25);
+
+  /* オーバーレイ */
+  --overlay: rgba(0,0,0,.45);
+  --overlayLight: rgba(0,0,0,.35);
+
+  /* ガラス系 */
+  --glass: rgba(255,255,255,.85);
+  --glassStrong: rgba(255,255,255,.95);
+  --glassSoft: rgba(255,255,255,.9);
+  --glassHeader: rgba(255,255,255,.95);
+
+  /* 背景グラデーション */
+  --bgGradientStart: #fdf4ff;
+
+  --radius: 16px;
+}
+
+:root.resort{
+  --bg: #ecfeff;                 /* 海っぽい淡いブルー */
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+
+  /* 基本カラー */
+  --white: #ffffff;
+  --black: #000000;
+
+  /* ライン・ボーダー */
+  --line: rgba(14,165,233,.18);
+  --borderSoft: rgba(14,165,233,.18);
+  --borderSoftStrong: rgba(14,165,233,.22);
+  --borderSoftLight: rgba(14,165,233,.12);
+  --borderDashed: rgba(14,165,233,.18);
+
+  /* プライマリ（ターコイズ） */
+  --primary: #06b6d4;
+  --primaryText: rgba(6, 116, 136, 0.95);
+  --primaryLine: rgba(6,182,212,.45);
+  --primaryBg: rgba(6,182,212,.30);
+  --primaryBgStrong: rgba(6,182,212,.18);
+
+  /* その他カラー */
+  --danger: #ef4444;
+  --dangerLine: rgba(239,68,68,.35);
+  --dangerBg: rgba(239,68,68,.10);
+  --dangerBgStrong: rgba(239,68,68,.12);
+
+  --warn: #f59e0b;
+
+  /* グレー系 */
+  --grayText: rgba(100,116,139,.85);
+  --grayTextStrong: rgba(100,116,139,.9);
+  --grayBg: rgba(224,242,254,.6);   /* 水色ベース */
+  --grayBorder: rgba(14,165,233,.25);
+
+  /* UI用 */
+  --ring: rgba(6,182,212,.20);
+  --shadow: 0 10px 24px rgba(0,0,0,.08);
+  --shadowStrong: 0 12px 28px rgba(0,0,0,.25);
+
+  /* オーバーレイ */
+  --overlay: rgba(0,0,0,.45);
+  --overlayLight: rgba(0,0,0,.35);
+
+  /* ガラス系 */
+  --glass: rgba(255,255,255,.75);
+  --glassStrong: rgba(255,255,255,.9);
+  --glassSoft: rgba(255,255,255,.85);
+  --glassHeader: rgba(255,255,255,.92);
+
+  /* 背景グラデーション（ここが肝） */
+  --bgGradientStart: #a5f3fc;   /* 明るい海色 */
+
+  --radius: 16px;
+}
+
+:root.sunset{
+  --bg: #fff7ed;                 /* 夕焼けの空気感 */
+  --card: #ffffff;
+  --text: #431407;
+  --muted: #7c2d12;
+
+  /* 基本カラー */
+  --white: #ffffff;
+  --black: #000000;
+
+  /* ライン・ボーダー */
+  --line: rgba(251,146,60,.18);
+  --borderSoft: rgba(251,146,60,.18);
+  --borderSoftStrong: rgba(251,146,60,.22);
+  --borderSoftLight: rgba(251,146,60,.12);
+  --borderDashed: rgba(251,146,60,.18);
+
+  /* プライマリ（夕焼けオレンジ） */
+  --primary: #fb923c;
+  --primaryText: rgba(131, 71, 22, 0.95);
+  --primaryLine: rgba(251,146,60,.45);
+  --primaryBg: rgba(251,146,60,.40);
+  --primaryBgStrong: rgba(251,146,60,.18);
+
+  /* その他カラー */
+  --danger: #ef4444;
+  --dangerLine: rgba(239,68,68,.35);
+  --dangerBg: rgba(239,68,68,.10);
+  --dangerBgStrong: rgba(239,68,68,.12);
+
+  --warn: #f59e0b;
+
+  /* グレー系 */
+  --grayText: rgba(124,45,18,.85);
+  --grayTextStrong: rgba(124,45,18,.9);
+  --grayBg: rgba(255,237,213,.7);  /* 夕焼けベージュ */
+  --grayBorder: rgba(251,146,60,.25);
+
+  /* UI用 */
+  --ring: rgba(251,146,60,.20);
+  --shadow: 0 10px 24px rgba(0,0,0,.08);
+  --shadowStrong: 0 12px 28px rgba(0,0,0,.25);
+
+  /* オーバーレイ */
+  --overlay: rgba(0,0,0,.45);
+  --overlayLight: rgba(0,0,0,.35);
+
+  /* ガラス系 */
+  --glass: rgba(255,255,255,.75);
+  --glassStrong: rgba(255,255,255,.9);
+  --glassSoft: rgba(255,255,255,.85);
+  --glassHeader: rgba(255,255,255,.92);
+
+  /* 背景グラデーション（超重要） */
+  --bgGradientStart: #fde68a;   /* 太陽の光（黄色） */
+
+  --radius: 16px;
+}

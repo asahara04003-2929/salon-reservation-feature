@@ -1,28 +1,16 @@
-:root{
-  --bg: #fff7fb;
-  --card: #ffffff;
-  --text: #2b2b2b;
-  --muted: #7a6f78;
-  --line: rgba(236,72,153,.18);   /* ピンク線 */
-  --primary: #ec4899;             /* ピンク */
-  --danger: #ef4444;
-  --warn: #f59e0b;
-  --shadow: 0 10px 24px rgba(31,41,55,.10);
-  --radius: 16px;
-
-  /* 追加：アクセントを使い回すため */
-  --primaryLine: rgba(236,72,153,.45);
-  --primaryBg: rgba(236,72,153,.10);
-  --primaryBgStrong: rgba(236,72,153,.15);
-  --ring: rgba(236,72,153,.20);
-}
 
 *{ box-sizing: border-box; }
 html,body{ height:100%; }
 body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Meiryo", sans-serif;
-  background: radial-gradient(1200px 700px at 20% 0%, #ffffff 0%, var(--bg) 55%);
+  background:
+    radial-gradient(
+      140% 90% at 30% -10%,
+      var(--bgGradientStart),
+      transparent
+    ),
+    var(--bg);
   color: var(--text);
 }
 
@@ -41,7 +29,7 @@ a{ color:inherit; }
   z-index: 10;
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(10px);
-  background: rgba(255,255,255,.78);
+  background: var(--glass);
 }
 .topbar__inner{
   /* shellが幅と左右paddingを持つので、ここは縦paddingだけ */
@@ -64,7 +52,7 @@ a{ color:inherit; }
   padding: 6px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: rgba(255,255,255,.03);
+  background: var(--glassSoft);
 }
 .brand__sub{
   font-size: 12px;
@@ -86,7 +74,7 @@ a{ color:inherit; }
 
 .card{
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.90);
+  background: var(--glassStrong);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 14px;
@@ -103,7 +91,7 @@ a{ color:inherit; }
 }
 
 .panel{
-  border-top: 1px dashed var(--line);
+  border-top: 1px dashed var(--borderDashed);
   padding-top: 12px;
   margin-top: 12px;
 }
@@ -144,12 +132,12 @@ a{ color:inherit; }
 }
 .field__help{
   font-size: 12px;
-  color: rgba(148,163,184,.85);
+  color: var(--grayText);
 }
 .req{
   font-size: 11px;
-  color: rgba(236,72,153,.95);
-  border: 1px solid rgba(236,72,153,.35);
+  color: var(--primaryText);
+  border: 1px solid var(--primaryLine);
   padding: 1px 6px;
   border-radius: 999px;
   margin-left: 6px;
@@ -159,7 +147,7 @@ a{ color:inherit; }
   width:100%;
   padding: 12px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(148,163,184,.22);
+  border: 1px solid var(--borderSoftStrong);
   background: var(--card);
   color: var(--text);
   outline: none;
@@ -170,8 +158,8 @@ a{ color:inherit; }
 }
 
 .btn{
-  border: 1px solid rgba(148,163,184,.22);
-  background: rgba(255,255,255,.04);
+  border: 1px solid var(--borderSoftStrong);
+  background: var(--glassSoft);
   color: var(--text);
   padding: 10px 12px;
   border-radius: 12px;
@@ -184,8 +172,8 @@ a{ color:inherit; }
   background: var(--primaryBgStrong);
 }
 .btn--danger{
-  border-color: rgba(239,68,68,.45);
-  background: rgba(239,68,68,.12);
+  border-color: var(--dangerLine);
+  background: var(--dangerBgStrong);
 }
 .btn--ghost{
   background: transparent;
@@ -197,7 +185,7 @@ a{ color:inherit; }
 }
 
 .item{
-  border: 1px solid rgba(148,163,184,.18);
+  border: 1px solid var(--borderSoft);
   border-radius: 14px;
   padding: 12px;
   background: var(--primaryBgStrong);
@@ -226,12 +214,12 @@ a{ color:inherit; }
   margin-bottom: 10px;
   border-radius: 12px;
   padding: 10px 12px;
-  border: 1px solid rgba(148,163,184,.22);
+  border: 1px solid var(--borderSoftStrong);
   background: var(--primaryBgStrong);
 }
 .alert--error{
-  border-color: rgba(239,68,68,.35);
-  background: rgba(239,68,68,.10);
+  border-color: var(--dangerLine);
+  background: var(--dangerBg);
   color: var(--text);
 }
 
@@ -252,21 +240,21 @@ a{ color:inherit; }
   font-size: 12px;
   padding: 8px 10px;
   border-radius: 12px;
-  border: 1px solid rgba(148,163,184,.18);
-  background: rgba(2,6,23,.25);
+  border: 1px solid var(--borderSoft);
+  background: var(--grayBg);
   text-align:center;
-  color: rgba(148,163,184,.9);
+  color: var(--grayTextStrong);
 }
 .stepper__item--active{
   border-color: var(--primaryLine);
-  color: rgba(236,72,153,.95);
+  color: var(--primaryText);
   background: var(--primaryBg);
 }
 
 .summary{
   padding: 12px;
-  border: 1px solid rgba(148,163,184,.18);
-  background: rgba(2,6,23,.25);
+  border: 1px solid var(--borderSoft);
+  background: var(--grayBg);
   border-radius: 12px;
 }
 
@@ -282,8 +270,8 @@ a{ color:inherit; }
 .slot{
   padding: 10px 0;
   border-radius: 12px;
-  border: 1px solid rgba(148,163,184,.18);
-  background: rgba(2,6,23,.25);
+  border: 1px solid var(--borderSoft);
+  background: var(--grayBg);
   text-align:center;
   cursor:pointer;
 }
@@ -297,8 +285,8 @@ a{ color:inherit; }
 }
 
 .confirmBox, .doneBox{
-  border: 1px solid rgba(148,163,184,.18);
-  background: rgba(2,6,23,.25);
+  border: 1px solid var(--borderSoft);
+  background: var(--grayBg);
   border-radius: 14px;
   padding: 12px;
   display:grid;
@@ -315,7 +303,7 @@ a{ color:inherit; }
 .item,
 .summary,
 .confirmBox, .doneBox{
-  background: rgba(255,255,255,.85);
+  background: var(--glassSoft);
 }
 
 .timeTableWrap{
@@ -328,7 +316,7 @@ a{ color:inherit; }
   -webkit-overflow-scrolling: touch;
 
   border-radius: 14px;
-  border: 1px solid rgba(148,163,184,.18);
+  border: 1px solid var(--borderSoft);
   background: var(--card);
 }
 
@@ -340,8 +328,8 @@ a{ color:inherit; }
 }
 
 .timeTable th, .timeTable td{
-  border-right: 1px solid rgba(148,163,184,.12);
-  border-bottom: 1px solid rgba(148,163,184,.12);
+  border-right: 1px solid var(--borderSoftLight);
+  border-bottom: 1px solid var(--borderSoftLight);
   padding: 8px 10px;
   text-align: center;
   white-space: nowrap;
@@ -351,7 +339,7 @@ a{ color:inherit; }
 .timeTable thead th{
   position: sticky;
   top: 0;
-  background: rgba(255,255,255,.92);
+  background: var(--glassHeader);
   z-index: 3; /* 2 → 3 */
   font-weight: 700;
 }
@@ -359,7 +347,7 @@ a{ color:inherit; }
 .timeTable th:first-child, .timeTable td:first-child{
   position: sticky;
   left: 0;
-  background: rgba(255,255,255,.92);
+  background: var(--glassHeader);
   z-index: 5; /* 1 → 2 */
   font-weight: 700;
 }
@@ -367,14 +355,7 @@ a{ color:inherit; }
 .timeCell{
   cursor: pointer;
   border-radius: 10px;
-  /* border: 1px solid rgba(148,163,184,.18); */
-  /* background: rgba(255,255,255,.02); */
 }
-
-/* .timeCell--ok{
-  border-color: var(--primaryLine);
-  background: var(--primaryBg);
-} */
 
 .timeCell--ng{
   opacity: .45;
@@ -382,7 +363,7 @@ a{ color:inherit; }
 }
 
 .timeCell--selected{
-  outline: 2px solid rgba(236,72,153,.80);
+  outline: 2px solid var(--primaryText);
   outline-offset: -2px;
 }
 
@@ -393,15 +374,15 @@ a{ color:inherit; }
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  /* border: 1px solid rgba(148,163,184,.18); */
+  /* border: 1px solid var(--borderSoft); */
   font-weight: 800;
 }
 
 .badge--ok{
-  color: rgba(236,72,153,.95);
+  color: var(--primaryText);
   border-color: var(--primaryLine);
 }
-.badge--ng{ color: rgba(148,163,184,.85); }
+.badge--ng{ color: var(--grayText); }
 
 /* ✅ CSS（100文字まで崩れない見た目）
    ・長文でも折り返す
@@ -423,7 +404,7 @@ a{ color:inherit; }
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0,0,0,.45);
+  background: var(--overlay);
   display:flex;
   align-items:center;
   justify-content:center;
@@ -434,22 +415,22 @@ a{ color:inherit; }
   gap: 10px;
   padding: 16px 18px;
   border-radius: 16px;
-  border: 1px solid rgba(148,163,184,.22);
+  border: 1px solid var(--borderSoftStrong);
   background: var(--primaryBg);
-  box-shadow: 0 12px 28px rgba(0,0,0,.35);
+  box-shadow: var(--shadowStrong);
   text-align:center;
   min-width: 220px;
 }
 .loadingText{ 
   font-size: 13px;
-  color: rgba(229,231,235,.95);
+  color: var(--text);
   white-space: pre-line;
 }
 .spinner{
   width: 34px; height: 34px;
   border-radius: 999px;
-  border: 3px solid rgba(148,163,184,.25);
-  border-top-color: rgba(236,72,153,.90);
+  border: 3px solid var(--grayBorder);
+  border-top-color: var(--primaryText);
   animation: spin 0.9s linear infinite;
   margin: 0 auto;
 }
@@ -490,13 +471,13 @@ a{ color:inherit; }
 /* 生年月日：ドラムロール */
 .dob-modal{
   position: fixed; inset: 0;
-  background: rgba(0,0,0,.35);
+  background: var(--overlayLight);
   display:flex; align-items:flex-end; justify-content:center;
   z-index: 9999;
 }
 .dob-sheet{
   width: min(560px, 100%);
-  background: #fff;
+  background: var(--white);
   border-radius: 16px 16px 0 0;
   overflow:hidden;
 }
@@ -557,7 +538,7 @@ a{ color:inherit; }
   right: 0;
   text-align: center;
   font-size: 12px;
-  color: rgba(148,163,184,.85);
+  color: var(--grayText);
   pointer-events: none;
 }
 
@@ -591,7 +572,7 @@ textarea::-webkit-input-placeholder {
   z-index: 100;
 
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
-  background: rgba(255,255,255,.95);
+  background: var(--glassStrong);
   backdrop-filter: blur(8px);
   border-top: 1px solid var(--line);
 
@@ -611,15 +592,15 @@ textarea::-webkit-input-placeholder {
 #btnSelectDateTimeFixed:disabled{
   opacity: 0.4;
   cursor: not-allowed;
-  background: rgba(148,163,184,.2);
-  border-color: rgba(148,163,184,.2);
-  color: rgba(148,163,184,.8);
+  background: var(--grayBg);
+  border-color: var(--grayBg);
+  color: var(--grayText);
 }
 
 /* アクティブ時（選択済み）を強調 */
 #btnSelectDateTimeFixed:not(:disabled){
   background: var(--primaryBgStrong);
-  color: rgba(236, 72, 153, .95);
+  color: var(--primaryText);
   border-color: var(--primaryBgStrong);
 }
 
