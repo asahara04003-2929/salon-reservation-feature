@@ -1035,7 +1035,7 @@ function hasConflict_(startAt, endAt, capacity = 1) {
 let SS_CACHE_ = null;
 function ss_(){
   if (SS_CACHE_) return SS_CACHE_;
-  return (SS_CACHE_ = SpreadsheetApp.openById(SPREADSHEET_ID));
+  return (SS_CACHE_ = SpreadsheetApp.getActiveSpreadsheet());
 }
 
 const SHEETS_ = {};
