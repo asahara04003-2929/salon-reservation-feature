@@ -218,6 +218,7 @@ a{ color:inherit; }
 
 .alert{
   margin-top: 10px;
+  margin-bottom: 10px;
   border-radius: 12px;
   padding: 10px 12px;
   border: 1px solid rgba(148,163,184,.22);
@@ -609,4 +610,50 @@ textarea::-webkit-input-placeholder {
   min-height: 110px;
   resize: vertical; /* 好みで none でもOK */
   line-height: 1.5;
+}
+
+/* 日時を選ぶ（dark） */
+.fixedActionBar{
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  background: rgba(11,18,32,.95); /* ← ダークに変更 */
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--line);
+
+  display: flex;
+  justify-content: center;
+}
+
+.fixedActionBar .btn{
+  width: 50%;
+  max-width: 480px;
+  padding: 14px;
+  font-size: 15px;
+  border-radius: 14px;
+}
+
+/* 非アクティブ */
+#btnSelectDateTimeFixed:disabled{
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: rgba(148,163,184,.15);
+  border-color: rgba(148,163,184,.15);
+  color: rgba(148,163,184,.6);
+}
+
+/* アクティブ */
+#btnSelectDateTimeFixed:not(:disabled){
+  background: rgba(34,197,94,.18);   /* ← 緑 */
+  color: rgba(34,197,94,.95);        /* ← 緑 */
+  border-color: rgba(34,197,94,.45);
+}
+
+/* 押下 */
+#btnSelectDateTimeFixed:not(:disabled):active{
+  transform: scale(0.98);
 }

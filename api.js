@@ -84,10 +84,10 @@ document.addEventListener("DOMContentLoaded", () => {
     weekLabel: $("weekLabel"),
     selectedPlanBox: $("selectedPlanBox"),
     noteInput: $("noteInput"),
+    fixedActionBar: $("fixedActionBar"), // ★追加
   };
   initLiff();
 });
-
 
 
 function show(node) { node?.classList.remove("hidden"); }
@@ -204,6 +204,9 @@ async function initLiff() {
     await loadPlans();
     await checkUser();
 
+    const bar = $("fixedActionBar");
+    if (bar) bar.classList.remove("hidden");
+
     setStatus("準備完了");
   } catch (e) {
     console.error(e);
@@ -228,6 +231,9 @@ function wireEvents() {
   $("btnBackHome")?.addEventListener("click", () => {
     hide($("myPageCard"));
     show($("bookingCard"));
+
+    // ★追加：Step1に戻す＋ボタン表示
+    gotoStep(1);
   });
 
   $("registerForm")?.addEventListener("submit", async (ev) => {
@@ -323,6 +329,16 @@ function wireEvents() {
     await loadAvailabilityWeek();
   });
   initDobPicker(); // ★追加：生年月日ドラムロール
+
+  document.getElementById("btnSelectDateTimeFixed")
+    ?.addEventListener("click", async () => {
+
+      if (!state.selectedPlans.length) return;
+
+      state.weekStart = startOfView(new Date());
+      await loadAvailabilityWeek();
+      gotoStep(2);
+    });
 }
 
 /**
@@ -343,6 +359,16 @@ function gotoStep(n) {
   if (n === 2) p2 && show(p2);
   if (n === 3) p3 && show(p3);
   if (n === 4) p4 && show(p4);
+
+  // ★追加：固定ボタン制御
+  const bar = $("fixedActionBar");
+  if (bar) {
+    if (n === 1) {
+      bar.classList.remove("hidden");
+    } else {
+      bar.classList.add("hidden");
+    }
+  }
 }
 
 /**
@@ -364,6 +390,9 @@ async function checkUser() {
     hide($("registerCard"));
     show($("bookingCard"));
     gotoStep(1);
+    // ★追加（保険）
+    const bar = $("fixedActionBar");
+    if (bar) bar.classList.remove("hidden");
     renderPlans();
     setDefaultDate();
   } else {
@@ -463,6 +492,13 @@ function renderPlans() {
   state.totalDurationMin = 0;
   state.totalPrice = 0;
 
+  // ★追加（初期で無効化）
+  const fixedBtn = $("btnSelectDateTimeFixed");
+  if (fixedBtn) {
+    fixedBtn.disabled = true;
+    fixedBtn.textContent = "日時を選ぶ"; // ←これも追加
+  }
+
   const summaryId = "planSummaryBox";
   if (!$(summaryId)) {
     const box = document.createElement("div");
@@ -478,11 +514,6 @@ function renderPlans() {
     list.innerHTML = `<div class="alert">利用可能なプランがありません。</div>`;
     return;
   }
-
-  // 決定ボタン（下部）
-  const footer = document.createElement("div");
-  footer.className = "row row--end";
-  footer.innerHTML = `<button class="btn btn--primary" type="button" id="btnPlanDecide" disabled>日時を選ぶ</button>`;
 
   state.plans.forEach(plan => {
     const el = document.createElement("div");
@@ -513,34 +544,33 @@ function renderPlans() {
         state.selectedPlans = state.selectedPlans.filter(p => p.plan_id !== plan.plan_id);
       }
 
-      // 合計更新
       state.totalDurationMin = state.selectedPlans.reduce((a, p) => a + Number(p.duration_min), 0);
       state.totalPrice = state.selectedPlans.reduce((a, p) => a + Number(p.price), 0);
 
-      // 表示更新
       const names = state.selectedPlans.map(p => p.plan_name).join(" + ");
-      $(summaryId).innerHTML = state.selectedPlans.length
+      const count = state.selectedPlans.length;
+
+      $(summaryId).innerHTML = count
         ? `選択中：<b>${escapeHtml(names)}</b><br>合計：<b>${state.totalDurationMin}分</b> / <b>¥${Number(state.totalPrice).toLocaleString()}</b>`
         : "プランを選択してください（複数選択可）";
 
-      const btn = $("btnPlanDecide");
-      btn.disabled = state.selectedPlans.length === 0;
-      // 右上の選択中プラン表示も更新
-      $("selectedPlanBox").textContent = state.selectedPlans.length
+      // ★固定ボタン制御
+      const fixedBtn = $("btnSelectDateTimeFixed");
+      if (fixedBtn) {
+        fixedBtn.disabled = count === 0;
+
+        // ★ここが追加：件数表示
+        fixedBtn.textContent = count > 0
+          ? `日時を選ぶ（${count}件）`
+          : "日時を選ぶ";
+      }
+
+      $("selectedPlanBox").textContent = count
         ? `${names}（${state.totalDurationMin}分 / ¥${Number(state.totalPrice).toLocaleString()}）`
         : "—";
     });
 
     list.appendChild(el);
-  });
-
-  list.appendChild(footer);
-
-  $("btnPlanDecide").addEventListener("click", async () => {
-    // 週の起点
-    state.weekStart = startOfView(new Date());
-    await loadAvailabilityWeek(); // 週表示取得
-    gotoStep(2);
   });
 }
 
@@ -626,9 +656,15 @@ async function openMyPage() {
     if (!r.ok) throw new Error(r.error || "my_reservations_failed");
 
     renderReservations(r.reservations || []);
+
     hide($("bookingCard"));
     hide($("registerCard"));
     show($("myPageCard"));
+
+    // ★追加：固定ボタンを隠す
+    const bar = $("fixedActionBar");
+    if (bar) bar.classList.add("hidden");
+
     setStatus("予約一覧");
   } catch (e) {
     console.error(e);
