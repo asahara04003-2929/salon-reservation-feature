@@ -1,8 +1,6 @@
 /** =========================
  *  CONFIG
  * ========================= */
-// スプレットシートID
-const SPREADSHEET_ID = '1gBiXUNrYO_kloeI4zIiEqlGiZn8G2BkSs3VcIAYeXjU';
 
 // シート名定義
 const SHEET_PLAN = 'PLAN_MASTER';
