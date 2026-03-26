@@ -35,7 +35,7 @@ function onOpen() {
     .addItem('予約カレンダー更新', 'renderReservationCalendar') // ★追加
     .addSeparator()
     .addItem('祝日情報取得', 'syncJapaneseHolidaysToBlackouts') // ★追加
-    .addToUi()
+    .addSeparator()
     .addItem('キャッシュクリア', 'clearAllCache_') // ←追加
     .addToUi();
 }
