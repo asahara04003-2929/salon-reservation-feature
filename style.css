@@ -512,6 +512,9 @@ a{ color:inherit; }
   scroll-snap-align: center;
   font-size: 18px;
 }
+:root.dark .wheel .wheelItem{
+  color: var(--black);
+}
 .dob-centerline{
   position:absolute;
   left: 10px;
