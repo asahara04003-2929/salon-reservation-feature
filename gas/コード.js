@@ -35,6 +35,8 @@ function onOpen() {
     .addItem('予約カレンダー更新', 'renderReservationCalendar') // ★追加
     .addSeparator()
     .addItem('祝日情報取得', 'syncJapaneseHolidaysToBlackouts') // ★追加
+    .addToUi()
+    .addItem('キャッシュクリア', 'clearAllCache_') // ←追加
     .addToUi();
 }
 
@@ -2906,4 +2908,13 @@ function reservationDetailsUpdate(){
   }
 }
 
+// キャッシュクリア
+function clearAllCache_() {
+  const props = PropertiesService.getScriptProperties();
 
+  // 現在バージョンを +1 して全キャッシュ無効化
+  const v = Number(props.getProperty('CACHE_VER') || '1') + 1;
+  props.setProperty('CACHE_VER', String(v));
+
+  console.log('[clearAllCache_] cache version bumped to ' + v);
+}
